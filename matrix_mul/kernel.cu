@@ -13,7 +13,7 @@ using namespace std;
 using namespace cv;
 
 __global__ void matrix_mul(){
-   ciccio
+   cicciodfghfxghfg
 }
 
 
