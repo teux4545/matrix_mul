@@ -5,6 +5,8 @@ VisualStudioVersion = 14.0.25420.1
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "matrix_mul", "matrix_mul\matrix_mul.vcxproj", "{5C76AA9C-D877-4BD4-A37F-51CA4E11AB98}"
 EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "first_cuda", "..\first_cuda\first_cuda\first_cuda.vcxproj", "{12389708-FA76-4979-8CD8-65A15EA66BB4}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|x64 = Debug|x64
@@ -21,6 +23,14 @@ Global
 		{5C76AA9C-D877-4BD4-A37F-51CA4E11AB98}.Release|x64.Build.0 = Release|x64
 		{5C76AA9C-D877-4BD4-A37F-51CA4E11AB98}.Release|x86.ActiveCfg = Release|Win32
 		{5C76AA9C-D877-4BD4-A37F-51CA4E11AB98}.Release|x86.Build.0 = Release|Win32
+		{12389708-FA76-4979-8CD8-65A15EA66BB4}.Debug|x64.ActiveCfg = Debug|x64
+		{12389708-FA76-4979-8CD8-65A15EA66BB4}.Debug|x64.Build.0 = Debug|x64
+		{12389708-FA76-4979-8CD8-65A15EA66BB4}.Debug|x86.ActiveCfg = Debug|Win32
+		{12389708-FA76-4979-8CD8-65A15EA66BB4}.Debug|x86.Build.0 = Debug|Win32
+		{12389708-FA76-4979-8CD8-65A15EA66BB4}.Release|x64.ActiveCfg = Release|x64
+		{12389708-FA76-4979-8CD8-65A15EA66BB4}.Release|x64.Build.0 = Release|x64
+		{12389708-FA76-4979-8CD8-65A15EA66BB4}.Release|x86.ActiveCfg = Release|Win32
+		{12389708-FA76-4979-8CD8-65A15EA66BB4}.Release|x86.Build.0 = Release|Win32
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
