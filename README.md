@@ -1,2 +1,1 @@
-# matrix_mul
-moltiplicazione tra matrici
+# Moltiplicazione tra matrici usando CPU e GPU
