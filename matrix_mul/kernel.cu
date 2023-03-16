@@ -1,3 +1,9 @@
+//librerie standard
+#include <iostream>
+#include <assert.h>
+#include <stdio.h>
+#include <stdlib.h>
+
 // librerie CUDA
 #include "cuda_runtime.h"
 #include "device_launch_parameters.h"
@@ -5,18 +11,13 @@
 #include <device_functions.h>
 #include <cuda_runtime_api.h>
 
-//librerie standard
-#include <iostream>
-#include <stdio.h>
-#include <stdlib.h>
-
-//librerie OPENCV
+/*//librerie OPENCV
 #include <opencv2/core/core.hpp>
 #include <opencv2/highgui/highgui.hpp>
-#include <opencv2/imgproc.hpp>
+#include <opencv2/imgproc.hpp>*/
 
 using namespace std;
-using namespace cv;
+//using namespace cv;
 
 
 // Controllo errori cuda
@@ -33,7 +34,7 @@ using namespace cv;
         } \
     } while (0)
 
-cudaError_t checkCuda(cudaError_t result)
+/*cudaError_t checkCuda(cudaError_t result)
 {
 #if defined(DEBUG) || defined(_DEBUG)
 	if (result != cudaSuccess) {
@@ -43,7 +44,7 @@ cudaError_t checkCuda(cudaError_t result)
 	}
 #endif
 	return result;
-}
+}*/
 
 
 // Dimensioni array multidimensionale (matrici)
@@ -51,12 +52,12 @@ cudaError_t checkCuda(cudaError_t result)
 // oppure, viceversa, le righe della prima dovranno coincidere con le colonne della seconda
 
 //prima matrice (M1)
-const int righeM1 = 1500;
-const int colonneM1 = 1500;
+const int righeM1 = 3840;
+const int colonneM1 = 5120;
 
 //seconda matrice (M2)
-const int righeM2 = 1500;
-const int colonneM2 = 1500;
+const int righeM2 = 5120;
+const int colonneM2 = 3840;
 
 // la matrice risultante dal prodotto avrà dimesioni (colonneM1 * righeM2) o (righeM1 * colonneM2) 
 // a seconda se facciamo rispettivamente M2*M1 oppure M1*M2
@@ -72,12 +73,12 @@ __global__ void matrix_mulGPU(int *a, int *b, int *c){
 	int row = blockIdx.y * blockDim.y + threadIdx.y;
 
 	int sum = 0;
-	//col<righe si riferisce alle colonne della seconda matrice che infatti nel nostro caso sono le righe
+
 	if (row < righeM1 && col < colonneM2) {
 		
 		for (int i = 0; i < colonneM1; i++) {
 
-			sum += (a[row * colonneM1 + i] * b[i * colonneM2 + col])/255;
+			sum += a[row * colonneM1 + i] * b[i * colonneM2 + col];
 		}
 		c[row * colonneM2 + col] = sum;
 	}
@@ -86,19 +87,17 @@ __global__ void matrix_mulGPU(int *a, int *b, int *c){
 void matrix_mulCPU(int* a, int* b, int* c)
 {
 	int somma = 0;
-	//righe della prima matrice
+
 	for (int i = 0; i < righeM1; i++)
 	{
-		//colonne della seconda matrice che corrispondono infatti alle righe della prima matrice
-		//(definizione di prodotto tra matrici)
 		for (int j = 0; j < colonneM2; j++)
 		{
 			somma = 0;
-			//colonne della prima matrice
+	
 			for (int k = 0; k < colonneM1; k++)
 			{
-				//colonne prima matrice -> colonne , colonne seconda matrice - > righe
-				somma += (a[i * colonneM1 + k] * b[k * colonneM2 + j])/255;
+		
+				somma += a[i * colonneM1 + k] * b[k * colonneM2 + j];
 			}
 			c[i * colonneM2 + j] = somma;
 			
@@ -133,34 +132,48 @@ int main() {
 	puts("Acquisizione completata");
 	cout << endl;
 	*/
+
+	cudaFree(0);
+
+	// Create a Cuda event
+	cudaEvent_t start, stop;
+	cudaEventCreate(&start);
+	cudaEventCreate(&stop);
+	//float elapsed = 0; // time in ms
+
+	/*cudaEventRecord(start);
+	cudaEventRecord(stop);
+	cudaEventSynchronize(stop);
+	cudaEventElapsedTime(&elapsed, start, stop);
+	cout << "Tempo trascorso: " << elapsed << " ms" << endl;*/
+
 	puts("Allocazione delle variabili Host nella memoria");
 	// allocazione  matrice che si andrà a moltiplicare a quelle presenti nelle memorie
 
 	int* matRandHost;
-	matRandHost = (int *)malloc((colonneM2*righeM2) * sizeof(int));
+	cudaMallocHost((void **)&matRandHost, (colonneM2*righeM2) * sizeof(int));
 
-	// generazione valori pseudorandomici e popolamento matrice
+	// Generazione valori e popolamento matrice
 	puts("Generazione valori randomici per la prima e la seconda matrice");
 
 	for (int i = 0; i < righeM2; i++)
 		for (int j = 0; j < colonneM2; j++)
 			matRandHost[i*colonneM2 + j] = rand() % 256;
 
-	// allocazione matrice di host
+	// Allocazione matrice di host
 	int* matriceHost;
-	matriceHost = (int *)malloc(righeM1*colonneM1 * sizeof(int));
+	cudaMallocHost((void **)&matriceHost, (colonneM1*righeM1) * sizeof(int));
 
-	// popolamento matrice con i valori dell' immagine
+	// Popolamento matrice con valori randomici
 	for (int i = 0; i < righeM1; i++)
 		for (int j = 0; j < colonneM1; j++)
 			matriceHost[i*colonneM1 + j] = rand() % 256;
 			//matriceHost[i*colonneM1 + j] = (int)img.at<uchar>(i, j);
 
 	int *matResHost, *matResCPU;
-	matResHost = (int *)malloc(righeM1*colonneM2 * sizeof(int));
-	matResCPU = (int *)malloc(righeM1*colonneM2 * sizeof(int));
-
-	puts("Allocazione popolamento matrici completati");
+	cudaMallocHost((void **)&matResHost, (righeM1*colonneM2) * sizeof(int));
+	matResCPU = (int *)malloc((colonneM2*righeM1) * sizeof(int));
+	puts("Allocazione e popolamento matrici completati");
 	cout << endl;
 
 	// Allocazione di memoria per le variabili che lavoreranno sulla GPU
@@ -168,17 +181,17 @@ int main() {
 
 	int *matriceGPU, *matRGPU, *matResGPU;
 
-	cudaMalloc((int **)&matriceGPU, (righeM1*colonneM1) * sizeof(int));
+	cudaMalloc((void **)&matriceGPU, (righeM1*colonneM1) * sizeof(int));
 	cudaCheckErrors("Allocazione fallita");
-	cudaMalloc((int **)&matRGPU, (righeM2*colonneM2) * sizeof(int));
+	cudaMalloc((void **)&matRGPU, (righeM2*colonneM2) * sizeof(int));
 	cudaCheckErrors("Allocazione fallita");
-	cudaMalloc((int **)&matResGPU, (righeM1*colonneM2) * sizeof(int));
+	cudaMalloc((void **)&matResGPU, (righeM1*colonneM2) * sizeof(int));
 	cudaCheckErrors("Allocazione fallita");
 
 	puts("Allocazione completata");
 	cout << endl ;
 
-	//Copia dei valori della prima e seconda matrice (host) nelle variabili device
+	// Copia dei valori della prima e seconda matrice (host) nelle variabili device
 	puts("Trasferimento valori delle due matrici nella GPU");
 
 	cudaMemcpy(matriceGPU, matriceHost, (righeM1*colonneM1) * sizeof(int), cudaMemcpyHostToDevice);
@@ -187,7 +200,7 @@ int main() {
 	cudaCheckErrors("Copia dei dati da Host a Device fallita");
 	cudaMemcpy(matResGPU, matResHost, (righeM1*colonneM2) * sizeof(int), cudaMemcpyHostToDevice);
 	cudaCheckErrors("Copia dei dati da Host a Device fallita");
-
+	cudaDeviceSynchronize();
 	puts("Trasferimento completato");
 	cout << endl;
 
@@ -195,7 +208,7 @@ int main() {
 	puts("Costruzione griglia di calcolo per la GPU");
 
 	dim3 threads(BLKSIZE, BLKSIZE);
-	dim3 blocks((colonneM2 + BLKSIZE - 1)/ BLKSIZE, (righeM1 * BLKSIZE - 1 )/ BLKSIZE);
+	dim3 blocks((righeM1+BLKSIZE-1) / BLKSIZE, (colonneM2+BLKSIZE-1) / BLKSIZE);
 
 	cout << endl;
 
@@ -205,25 +218,41 @@ int main() {
 	matrix_mulGPU << <blocks, threads >> > (matriceGPU, matRGPU, matResGPU);
 	cudaCheckErrors("Esecuzione del kernel Fallita");
 	cudaDeviceSynchronize();
-	puts("Calcolo sulla GPU eseguito");
+
+	puts("Calcolo sulla GPU completato");
 	cout << endl;
 
-	//Trasferimento dei valori della matrice risultante dalla compilazione sulla GPU alla variabile Host
+	// Trasferimento dei valori della matrice risultante dalla compilazione sulla GPU alla variabile Host
 	puts("Trasferimento valori della GPU alla matrice del Host del risultato");
-	cudaMemcpyAsync(matResHost, matResGPU, (righeM1*colonneM2) * sizeof(int), cudaMemcpyDeviceToHost);
-	cudaCheckErrors("Copia dei dati fallita\n");
+
+	cudaMemcpy(matResHost, matResGPU, (righeM1*colonneM2) * sizeof(int), cudaMemcpyDeviceToHost);
+	cudaCheckErrors("Trasferimento fallito\n");
+	cudaDeviceSynchronize();
+	
+
 	puts("Trasferimento completato");
 	cout << endl;
 
 	// Esecuzione funzione sulla CPU
 	puts("Avvio calcolo sulla CPU");
+
 	matrix_mulCPU(matriceHost, matRandHost, matResCPU);
+
 	puts("Calcolo sulla CPU eseguito");
 	cout << endl << endl;
 
-		free(matRandHost);
-		free(matriceHost);
-		free(matResHost);
+	for(int i = 0 ; i < righeM1; i++)
+		for (int j = 0; j < colonneM2; j++) {
+			if (matResCPU[i*colonneM2 + j] == matResHost[i*colonneM2 + j]) {
+				cout <<"["<<i<<"]"<<"[" << j << "] --> " << matResHost[i*colonneM2 + j] << " -> Valore uguale" << endl;
+			}
+			else
+				cout << "[" << i << "]" << "[" << j << "] --> " << "sei stupido" << endl;
+		}
+
+	cudaFreeHost(matRandHost);
+	cudaFreeHost(matriceHost);
+	cudaFreeHost(matResHost);
 
 		cudaFree(matriceGPU);
 		cudaFree(matRGPU);
