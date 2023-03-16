@@ -56,7 +56,7 @@ const int colonneM2 = 1080;
 
 
 // funzione eseguita sulla GPU (calcolo parallelo)
-__global__ void matrix_mulGPU(int *a, int *b, int *c){
+__global__ void matrix_mulGPU(int *a, int *b, int *c) {
 
 	int col = blockIdx.x * blockDim.x + threadIdx.x;
 	int row = blockIdx.y * blockDim.y + threadIdx.y;
@@ -75,10 +75,10 @@ void matrix_mulCPU(int* a, int* b, int* c) {
 
 	int somma = 0;
 
-	for (int i = 0; i < righeM1; i++){
-		for (int j = 0; j < colonneM2; j++){
+	for (int i = 0; i < righeM1; i++) {
+		for (int j = 0; j < colonneM2; j++) {
 			somma = 0;
-			for (int k = 0; k < colonneM1; k++){
+			for (int k = 0; k < colonneM1; k++) {
 				somma += a[i * colonneM1 + k] * b[k * colonneM2 + j];
 			}
 			c[i * colonneM2 + j] = somma;
@@ -90,12 +90,12 @@ void matrix_mulCPU(int* a, int* b, int* c) {
 int main() {
 
 	/*       VARIANTE CON IMMAGINI
-	
+
 	//apro l'immagine e la carico nella variabile img
 	// la conversione in scala di grigi serve per semplificare e avere matrici in due dimensioni invece  di tre
 	puts("Acquisizione dati immagine");
 	Mat imgOriginal = imread("image.jpg", IMREAD_GRAYSCALE);
-	
+
 	// controllo che siano presenti i dati dell'immagine
 	if (imgOriginal.data == NULL) {
 		cerr << "Errore nell'aprire l'immagine" << endl;
@@ -161,7 +161,7 @@ int main() {
 	for (int i = 0; i < righeM1; i++)
 		for (int j = 0; j < colonneM1; j++)
 			matriceHost[i*colonneM1 + j] = rand() % 256;
-			//matriceHost[i*colonneM1 + j] = (int)img.at<uchar>(i, j);
+	//matriceHost[i*colonneM1 + j] = (int)img.at<uchar>(i, j);
 
 	int *matResHost, *matResCPU;
 	cudaMallocHost((void **)&matResHost, (righeM1*colonneM2) * sizeof(int));
@@ -183,7 +183,7 @@ int main() {
 	cudaCheckErrors("Allocazione fallita");
 
 	puts("Allocazione completata");
-	cout << endl ;
+	cout << endl;
 
 
 	// Copia dei valori della prima e seconda matrice (host) nelle variabili device
@@ -229,7 +229,7 @@ int main() {
 	cudaEventElapsedTime(&elapsed2, start, stop);
 
 	puts("Calcolo sulla GPU completato");
-	cout << "Tempo trascorso: " << elapsed2/1000 << " s" << endl;
+	cout << "Tempo trascorso: " << elapsed2 / 1000 << " s" << endl;
 	cout << endl;
 
 
@@ -292,11 +292,11 @@ int main() {
 	cudaFreeHost(matriceHost);
 	cudaFreeHost(matResHost);
 
-		cudaFree(matriceGPU);
-		cudaFree(matRGPU);
-		cudaFree(matResGPU);
+	cudaFree(matriceGPU);
+	cudaFree(matRGPU);
+	cudaFree(matResGPU);
 
-		cout << endl << endl;
-		system("pause");
+	cout << endl << endl;
+	system("pause");
 	return 0;
 }
