@@ -201,6 +201,7 @@ int main() {
 	cudaMemcpy(matResGPU, matResHost, (righeM1*colonneM2) * sizeof(int), cudaMemcpyHostToDevice);
 	cudaCheckErrors("Copia dei dati da Host a Device fallita");
 	cudaDeviceSynchronize();
+
 	puts("Trasferimento completato");
 	cout << endl;
 
