@@ -40,13 +40,15 @@ using namespace std;
 // NB il numero di colonne della prima matrice deve coincidere assolutamente con il numero di righe della seconda matrice
 // oppure, viceversa, le righe della prima dovranno coincidere con le colonne della seconda
 
+const int dim = 1500;
+
 //prima matrice (M1)
-const int righeM1 = 1080;
-const int colonneM1 = 1920;
+const int righeM1 = dim;
+const int colonneM1 = dim;
 
 //seconda matrice (M2)
-const int righeM2 = 1920;
-const int colonneM2 = 1080;
+const int righeM2 = dim;
+const int colonneM2 = dim;
 
 // la matrice risultante dal prodotto avrà dimesioni (colonneM1 * righeM2) o (righeM1 * colonneM2) 
 // a seconda se facciamo rispettivamente M2*M1 oppure M1*M2
@@ -67,17 +69,17 @@ __global__ void matrix_mulGPU(int *a, int *b, int *c) {
 		for (int i = 0; i < colonneM1; i++) {
 			sum += a[row * colonneM1 + i] * b[i * colonneM2 + col];
 		}
+		__syncthreads();
 		c[row * colonneM2 + col] = sum;
+		__syncthreads();
 	}
 }
 
 void matrix_mulCPU(int* a, int* b, int* c) {
 
-	int somma = 0;
-
 	for (int i = 0; i < righeM1; i++) {
 		for (int j = 0; j < colonneM2; j++) {
-			somma = 0;
+			int somma = 0;
 			for (int k = 0; k < colonneM1; k++) {
 				somma += a[i * colonneM1 + k] * b[k * colonneM2 + j];
 			}
@@ -210,8 +212,8 @@ int main() {
 	// Dimensionamento della griglia di blocchi e thread (max 1024 thread per blocco)
 	puts("Costruzione griglia di calcolo per la GPU");
 
-	dim3 threads(BLKSIZE, BLKSIZE);
-	dim3 blocks((righeM1 + BLKSIZE - 1) / BLKSIZE, (colonneM2 + BLKSIZE - 1) / BLKSIZE);
+	dim3 block(BLKSIZE, BLKSIZE); // 32 * 32 = 1024
+	dim3 grid((righeM1 + BLKSIZE - 1) / BLKSIZE, (colonneM2 + BLKSIZE - 1) / BLKSIZE);
 
 	cout << endl;
 
@@ -221,7 +223,7 @@ int main() {
 
 	cudaEventRecord(start);
 
-	matrix_mulGPU << <blocks, threads >> > (matriceGPU, matRGPU, matResGPU);
+	matrix_mulGPU << <grid, block >> > (matriceGPU, matRGPU, matResGPU);
 	cudaCheckErrors("Esecuzione del kernel Fallita");
 
 	cudaEventRecord(stop);
