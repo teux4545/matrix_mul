@@ -40,15 +40,13 @@ using namespace std;
 // NB il numero di colonne della prima matrice deve coincidere assolutamente con il numero di righe della seconda matrice
 // oppure, viceversa, le righe della prima dovranno coincidere con le colonne della seconda
 
-const int dim = 1500;
-
 //prima matrice (M1)
-const int righeM1 = dim;
-const int colonneM1 = dim;
+const int righeM1 = 1080;
+const int colonneM1 = 1920;
 
 //seconda matrice (M2)
-const int righeM2 = dim;
-const int colonneM2 = dim;
+const int righeM2 = 1920;
+const int colonneM2 = 1080;
 
 // la matrice risultante dal prodotto avrà dimesioni (colonneM1 * righeM2) o (righeM1 * colonneM2) 
 // a seconda se facciamo rispettivamente M2*M1 oppure M1*M2
@@ -135,10 +133,14 @@ int main() {
 
 	// Restituisce il device NVidia in uso
 	cudaDeviceProp prop;
+	size_t free, total;
 	cudaGetDeviceProperties(&prop, 0);
+	cudaCheckErrors("Errore acquisizione dati");
+	cudaMemGetInfo(&free, &total);
 	cudaCheckErrors("Errore acquisizione dati");
 
 	printf("Device: %s\n", prop.name);
+	cout << "GPU -> memory: free= " << free << " bytes, total= " << total << " bytes" << endl;
 	cout << endl;
 
 
@@ -177,11 +179,11 @@ int main() {
 
 	int *matriceGPU, *matRGPU, *matResGPU;
 
-	cudaMalloc((void **)&matriceGPU, (righeM1*colonneM1) * sizeof(int));
+	cudaMalloc((void **)&matriceGPU, (righeM1 * colonneM1) * sizeof(int));
 	cudaCheckErrors("Allocazione fallita");
-	cudaMalloc((void **)&matRGPU, (righeM2*colonneM2) * sizeof(int));
+	cudaMalloc((void **)&matRGPU, (righeM2 * colonneM2) * sizeof(int));
 	cudaCheckErrors("Allocazione fallita");
-	cudaMalloc((void **)&matResGPU, (righeM1*colonneM2) * sizeof(int));
+	cudaMalloc((void **)&matResGPU, (righeM1 * colonneM2) * sizeof(int));
 	cudaCheckErrors("Allocazione fallita");
 
 	puts("Allocazione completata");
@@ -197,7 +199,7 @@ int main() {
 	cudaCheckErrors("Copia dei dati da Host a Device fallita");
 	cudaMemcpy(matRGPU, matRandHost, (righeM2*colonneM2) * sizeof(int), cudaMemcpyHostToDevice);
 	cudaCheckErrors("Copia dei dati da Host a Device fallita");
-	cudaMemcpy(matResGPU, matResHost, (righeM1*colonneM2) * sizeof(int), cudaMemcpyHostToDevice);
+	cudaMemcpy(matResGPU, matResHost, (righeM1 * colonneM2) * sizeof(int), cudaMemcpyHostToDevice);
 	cudaCheckErrors("Copia dei dati da Host a Device fallita");
 
 	cudaEventRecord(stop);
@@ -240,7 +242,7 @@ int main() {
 
 	cudaEventRecord(start);
 
-	cudaMemcpy(matResHost, matResGPU, (righeM1*colonneM2) * sizeof(int), cudaMemcpyDeviceToHost);
+	cudaMemcpyAsync(matResHost, matResGPU, (righeM1 * colonneM2) * sizeof(int), cudaMemcpyDeviceToHost);
 	cudaCheckErrors("Trasferimento fallito\n");
 
 	cudaEventRecord(stop);
@@ -249,6 +251,7 @@ int main() {
 
 	puts("Trasferimento completato");
 	cout << "Tempo trascorso: " << elapsed3 << " ms" << endl;
+	//printf("Larghezza di banda utilizzata (Device2H) per la matrice dei risultati (GB/s): %f\n", (((righeM1*colonneM2) * sizeof(int))) * 1e-6 / elapsed3);
 	cout << endl;
 
 
