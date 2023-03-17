@@ -5,6 +5,6 @@
 ## Calcolo sulla CPU
 ## Durata delle operazioni
 ## Controllo dei risultati
-## Gestione delle ccezioni
+## Gestione delle eccezioni
 ## Autore
 - <b>Ciucciovè Leonardo</b>

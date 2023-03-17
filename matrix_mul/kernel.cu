@@ -36,43 +36,51 @@ using namespace std;
     } while (0)
 
 
-// Dimensioni array multidimensionale (matrici)
-// NB il numero di colonne della prima matrice deve coincidere assolutamente con il numero di righe della seconda matrice
-// oppure, viceversa, le righe della prima dovranno coincidere con le colonne della seconda
+/* Dimensioni array multidimensionale (matrici)
+      N.B.: il numero di colonne della prima matrice deve coincidere assolutamente con il numero di righe della seconda matrice
+      oppure, viceversa, le righe della prima dovranno coincidere con le colonne della seconda*/
 
 //prima matrice (M1)
-const int righeM1 = 1080;
+const int righeM1 = 1280;
 const int colonneM1 = 1920;
 
 //seconda matrice (M2)
 const int righeM2 = 1920;
-const int colonneM2 = 1080;
+const int colonneM2 = 1280;
 
-// la matrice risultante dal prodotto avrà dimesioni (colonneM1 * righeM2) o (righeM1 * colonneM2) 
-// a seconda se facciamo rispettivamente M2*M1 oppure M1*M2
-// -> IL PRODOTTO TRA MATRICI NON E' COMMUTATIVO
+/* La matrice risultante dal prodotto avrà dimesioni (colonneM1 * righeM2) o (righeM1 * colonneM2) 
+   a seconda se facciamo rispettivamente M2*M1 oppure M1*M2
 
+     -> IL PRODOTTO TRA MATRICI NON E' COMMUTATIVO */
+
+// Dimensioni del blocco (x,y) impostate uguali in modo che formino blocchi quadrati esattamente di 1024 threads (limite imposto dall'hardware)
 #define BLKSIZE 32
 
 
-// funzione eseguita sulla GPU (calcolo parallelo)
+// Funzione eseguita sulla GPU (calcolo parallelo)
 __global__ void matrix_mulGPU(int *a, int *b, int *c) {
 
+	// Inizializzo le coordinate dei thread all'interno della griglia (col e row identificano un singolo thread specifico)
 	int col = blockIdx.x * blockDim.x + threadIdx.x;
 	int row = blockIdx.y * blockDim.y + threadIdx.y;
 
-	int sum = 0;
+	// somma impostata a zero, aumenterà man mano che, come avviene nel prodotto tra matrici, si sommano gli elementi moltiplicati
+	int somma = 0;
 
+	// viene posta una condizione di controllo affinché vengano chiamati solo i thread effettivamente predisposti per le operazioni di moltiplicazione
 	if (row < righeM1 && col < colonneM2) {
+
+		// l'iterazione parte 
 		for (int i = 0; i < colonneM1; i++) {
-			sum += a[row * colonneM1 + i] * b[i * colonneM2 + col];
+			somma += a[row * colonneM1 + i] * b[i * colonneM2 + col];
 		}
 		__syncthreads();
-		c[row * colonneM2 + col] = sum;
+		c[row * colonneM2 + col] = somma;
 		__syncthreads();
 	}
 }
 
+// funzione eseguita sulla CPU (calcolo sequenziale)
 void matrix_mulCPU(int* a, int* b, int* c) {
 
 	for (int i = 0; i < righeM1; i++) {
@@ -112,6 +120,10 @@ int main() {
 
 	puts("Acquisizione completata");
 	cout << endl;
+
+	Si va poi a popolare la matrice host con i dati dei pixel dell'immagine iterando il comando matriceHost[i*colonneM1 + j]=(int)img.at<uchar>(i,j)
+	I valori per un canale solo (Greyscale) vanno da 0 a 255
+
 	*/
 
 	cudaFree(0);
@@ -131,7 +143,7 @@ int main() {
 	puts("Operazioni di moltiplicazione matriciale a conftonto CPU vs GPU");
 	cout << endl;
 
-	// Restituisce il device NVidia in uso
+	// Restituisce alcuni parametri della scheda NVidia in uso
 	cudaDeviceProp prop;
 	size_t free, total;
 	cudaGetDeviceProperties(&prop, 0);
@@ -140,12 +152,12 @@ int main() {
 	cudaCheckErrors("Errore acquisizione dati");
 
 	printf("Device: %s\n", prop.name);
-	cout << "GPU -> memory: free= " << free << " bytes, total= " << total << " bytes" << endl;
+	cout << "GPU -> memory: free= " << free / (1024*1024) << " MegaBytes, total= " << total / (1024*1024*1024) << " GigaBytes" << endl;
 	cout << endl;
 
 
 	puts("Allocazione delle variabili Host nella memoria");
-	// allocazione  matrice che si andrà a moltiplicare a quelle presenti nelle memorie
+	// allocazione matrice che si andrà a moltiplicare a quelle presenti nelle memorie
 
 	int* matRandHost;
 	cudaMallocHost((void **)&matRandHost, (colonneM2*righeM2) * sizeof(int));
@@ -251,7 +263,7 @@ int main() {
 
 	puts("Trasferimento completato");
 	cout << "Tempo trascorso: " << elapsed3 << " ms" << endl;
-	//printf("Larghezza di banda utilizzata (Device2H) per la matrice dei risultati (GB/s): %f\n", (((righeM1*colonneM2) * sizeof(int))) * 1e-6 / elapsed3);
+	printf("Larghezza di banda utilizzata (Device2H) per la matrice dei risultati (GB/s): %f\n", (((righeM1*colonneM2) * sizeof(int))) * 1e-6 / elapsed3);
 	cout << endl;
 
 
