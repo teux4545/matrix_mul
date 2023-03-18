@@ -38,64 +38,119 @@ using namespace std;
 
 
 /* Dimensioni array multidimensionale (matrici)
-      N.B.: il numero di colonne della prima matrice deve coincidere assolutamente con il numero di righe della seconda matrice
-      oppure, viceversa, le righe della prima dovranno coincidere con le colonne della seconda*/
+      N.B.: il numero di colonne della prima matrice deve coincidere assolutamente con il numero di righe della seconda matrice  */
 
 // prima matrice (M1)
-const int righeM1 = 3000;
-const int colonneM1 = 3000;
+const int righeM1 = 1440;
+const int colonneM1 = 2560;
 
 // seconda matrice (M2)
-const int righeM2 = 3000;
-const int colonneM2 = 3000;
+const int righeM2 = 2560;
+const int colonneM2 = 1440;
 
 // dimensioni delle matrici M1, M2 e matrice dei risultati
 size_t dimM1 = (righeM1*colonneM1) * sizeof(int); 
 size_t dimM2 = (righeM2*colonneM2) * sizeof(int);
 size_t dimRes = (righeM1*colonneM2) * sizeof(int);
 
-/* La matrice risultante dal prodotto avrà dimesioni (colonneM1 * righeM2) o (righeM1 * colonneM2) 
-   a seconda se facciamo rispettivamente M2*M1 oppure M1*M2
+/*  La matrice risultante dal prodotto avrà dimesioni righeM1 * colonneM2 (righe della prima e colonne della seonda)
 
-     -> IL PRODOTTO TRA MATRICI NON E' COMMUTATIVO */
+     -> IL PRODOTTO TRA MATRICI NON E' COMMUTATIVO  */
 
 // Dimensioni del blocco (x,y) impostate uguali in modo che formino blocchi quadrati esattamente di 1024 threads (limite imposto dall'hardware)
 #define BLKSIZE 32
 
 
 // Funzione eseguita sulla GPU (calcolo parallelo)
+// viene utilizzata la memoria globale (qui le variabili infatti possono essere allocate dinamicamente con le APIs cudamalloc e cudamallocHost)
 __global__ void matrix_mulGPU(int *a, int *b, int *c) {
 
 	// Inizializzo le coordinate dei thread all'interno della griglia (col e row identificano un singolo thread specifico)
 	int col = blockIdx.x * blockDim.x + threadIdx.x;
 	int row = blockIdx.y * blockDim.y + threadIdx.y;
 
-	// somma impostata a zero, aumenterà man mano che, come avviene nel prodotto tra matrici, si sommano gli elementi moltiplicati
+	// Somma impostata a zero, aumenterà man mano che, come avviene nel prodotto tra matrici, si sommano gli elementi moltiplicati
+
 	int somma = 0;
 
-	// viene posta una condizione di controllo affinché vengano chiamati solo i thread effettivamente predisposti per le operazioni di moltiplicazione su cui si trovano i dati specifici
+	/*  viene posta una condizione di controllo affinché vengano chiamati solo i thread effettivamente predisposti per le operazioni di moltiplicazione
+	    infatti la griglia creata è impostata sempre leggermente più grande delle dimensioni del prodotto righe*colonne  */
+
 	if (row < righeM1 && col < colonneM2) {
 
-		// l'iterazione parte scorrendo gli array corrispondenti
+		/*  l'iterazione parte: per la matrice M1 si percorrono le righe della griglia (thread posti orizzontalmente sull'asse x, cioè le colonneM1)
+		    per la matrice M2 invece accade la stessa cosa ma si procede scorrendo lungo i thread posti verticalmente (asse y, cioè le righeM2)
+		    row e col mantengono "fissato" il calcolo sulle righe e colonne corrispondenti  */
+
 		for (int i = 0; i < colonneM1; i++) {
+
+			// la somma accumula i prodotti che man mano vanno aggiungendosi, scorrendo infatti lungo le dimensioni x e y
+
 			somma += a[row * colonneM1 + i] * b[i * colonneM2 + col];
+			// la durata computazionale del processo è data proprio da quest'ultima stringa che dipende direttamente dalle dimensioni delle matrici in esame: il calcolo effettuato è (M1*M2)
 		}
+		// alla fine di ogni iterazione vengono popolati ordinatamente in modo crescente gli elementi nell'array del risultato
+
 		c[row * colonneM2 + col] = somma;
 	}
 }
 
-// funzione eseguita sulla CPU (calcolo sequenziale)
+__global__ void matrixMultiplyShared(int *a, int *b, int *c) {
+
+	__shared__ int sA[BLKSIZE][BLKSIZE];   // sA usa un blocco da 32*32 = 1024 thread
+	__shared__ int sB[BLKSIZE][BLKSIZE];   // sB usa un blocco da 32*32 = 1024 thread
+
+	int row = blockDim.y * blockIdx.y + threadIdx.y;
+	int col = blockDim.x * blockIdx.x + threadIdx.x;
+
+	int somma = 0;
+	sA[threadIdx.y][threadIdx.x] = 0;
+	sB[threadIdx.y][threadIdx.x] = 0;
+
+	for (int ph = 0; ph < (((colonneM1 - 1) / BLKSIZE) + 1); ph++) {
+		if ((row < righeM1) && (threadIdx.x + (ph * BLKSIZE)) < colonneM1) {
+			sA[threadIdx.y][threadIdx.x] = a[(row * colonneM1) + threadIdx.x + (ph * BLKSIZE)];
+		}
+		else {
+			sA[threadIdx.y][threadIdx.x] = 0.0;
+		}
+		if (col < colonneM2 && (threadIdx.y + ph * BLKSIZE) < righeM2) {
+			sB[threadIdx.y][threadIdx.x] = b[(threadIdx.y + ph * BLKSIZE) * colonneM2 + col];
+		}
+		else {
+			sB[threadIdx.y][threadIdx.x] = 0.0;
+		}
+		__syncthreads(); // errore di Intellisense, non comporta problemi durante l'esecuzione
+
+		for (int j = 0; j < BLKSIZE; ++j) {
+			somma += sA[threadIdx.y][j] * sB[j][threadIdx.x];
+		}
+	}
+	if (row < righeM1 && col < colonneM2) {
+		c[row * colonneM2 + col] = somma;
+	}
+}
+
+
+/*  Funzione eseguita sulla CPU (calcolo sequenziale)
+    A differenza delle operazioni per cui il calcolo avviene simultaneamente per ogni fila ThreadY/ThreadX con l'unica analogia che riguarda lo scorrimento dei valori lungo le fasce,
+	la CPU, operando in modo sequenziale, deve scorrerere un elemento per volta e moltiplicarlo per il giusto elemento dell'altra matrice  */
+
 void matrix_mulCPU(int* a, int* b, int* c) {
 
 	for (int i = 0; i < righeM1; i++) {
 		for (int j = 0; j < colonneM2; j++) {
-			int somma = 0;
+			//ogni volta avviene un reset della somma
+			 int somma = 0;
+
 			for (int k = 0; k < colonneM1; k++) {
 				somma += a[i * colonneM1 + k] * b[k * colonneM2 + j];
 			}
+
 			c[i * colonneM2 + j] = somma;
 		}
 	}
+
 	return;
 }
 
@@ -137,6 +192,7 @@ int main() {
 	cudaEvent_t start, stop;
 	cudaEventCreate(&start);
 	cudaEventCreate(&stop);
+
 	float elapsed1 = 0; // time in ms
 	float elapsed2 = 0; // time in ms
 	float elapsed3 = 0; // time in ms
@@ -151,23 +207,34 @@ int main() {
 	// Restituisce alcuni parametri della scheda NVidia in uso
 	cudaDeviceProp prop;
 	size_t free1, free2, total;
+
 	cudaGetDeviceProperties(&prop, 0);
-	cudaCheckErrors("Errore acquisizione dati");
+		cudaCheckErrors("Errore acquisizione dati");
 	cudaMemGetInfo(&free1, &total);
-	cudaCheckErrors("Errore acquisizione dati");
+		cudaCheckErrors("Errore acquisizione dati");
 
 	printf("Device: %s\n", prop.name);
 	cout << "GPU -> memory: free = " << free1 / (1024 * 1024) << " MegaBytes, total = " << total / (1024*1024*1024) << " GigaBytes" << endl;
 	cout << endl;
 
+	// Condizione di controllo  per confrontare le dimensioni delle matrici e non generare eccezioni durante l'elaborazione
+	if (righeM2 != colonneM1) {
+
+		cout << "Le colonne della prima matrice non corrispondono alle righe della seconda" << endl;
+		cout << "ESECUZIONE ARRESTATA, ATTENZIONE IMMETTERE VALORI UGUALI PER LE DUE DIMENSIONI" << endl << endl;
+
+		system("pause");
+		return -1;
+	}
+
 
 	puts("Allocazione delle variabili Host nella memoria");
-	// allocazione matrice che si andrà a moltiplicare a quelle presenti nelle memorie
+	// Allocazione matrice che si andrà a moltiplicare a quelle presenti nelle memorie
 
 	int* matRandHost;
 	cudaMallocHost((void **)&matRandHost, dimM2);
 
-	// Generazione valori e popolamento matrice
+	// Generazione valori randomici e popolamento matrice
 	puts("Generazione valori randomici per la prima e la seconda matrice");
 
 	for (int i = 0; i < righeM2; i++)
@@ -184,29 +251,33 @@ int main() {
 			matriceHost[i*colonneM1 + j] = rand() % 256;
 	//matriceHost[i*colonneM1 + j] = (int)img.at<uchar>(i, j);
 
-	int *matResHost, *matResCPU;
+	// Matrici dei risultati e relativa allocazione
+	int *matResHost, *matResHostSH, *matResCPU;
 
 	cudaMallocHost((void **)&matResHost, dimRes);
+	cudaMallocHost((void **)&matResHostSH, dimRes);
 	matResCPU = (int *)malloc(dimRes);
 
 	puts("Allocazione e popolamento matrici completati");
-	cout << endl;
+		cout << endl;
 
 
 	// Allocazione di memoria per le variabili che lavoreranno sulla GPU
 	puts("Allocazione variabili nella memoria della GPU");
 
-	int *matriceGPU, *matRGPU, *matResGPU;
+	int *matriceGPU, *matRGPU, *matResGPU, *matResGPUSH;
 
 	cudaMalloc((void **)&matriceGPU, dimM1);
-	cudaCheckErrors("Allocazione fallita");
+		cudaCheckErrors("Allocazione fallita");
 	cudaMalloc((void **)&matRGPU, dimM2);
-	cudaCheckErrors("Allocazione fallita");
+		cudaCheckErrors("Allocazione fallita");
 	cudaMalloc((void **)&matResGPU, dimRes);
-	cudaCheckErrors("Allocazione fallita");
+		cudaCheckErrors("Allocazione fallita");
+	cudaMalloc((void **)&matResGPUSH, dimRes);
+		cudaCheckErrors("Allocazione fallita");
 
 	puts("Allocazione completata");
-	cout << endl;
+		cout << endl;
 
 
 	// Copia dei valori della prima e seconda matrice (host) nelle variabili device
@@ -215,28 +286,28 @@ int main() {
 	cudaEventRecord(start);
 
 	cudaMemcpy(matriceGPU, matriceHost, dimM1, cudaMemcpyHostToDevice);
-	cudaCheckErrors("Copia dei dati da Host a Device fallita");
+		cudaCheckErrors("Copia dei dati da Host a Device fallita");
 	cudaMemcpy(matRGPU, matRandHost, dimM2, cudaMemcpyHostToDevice);
-	cudaCheckErrors("Copia dei dati da Host a Device fallita");
+		cudaCheckErrors("Copia dei dati da Host a Device fallita");
 	cudaMemcpy(matResGPU, matResHost, dimRes, cudaMemcpyHostToDevice);
-	cudaCheckErrors("Copia dei dati da Host a Device fallita");
+		cudaCheckErrors("Copia dei dati da Host a Device fallita");
 
 	cudaEventRecord(stop);
 	cudaEventSynchronize(stop);
 	cudaEventElapsedTime(&elapsed1, start, stop);
 
 	puts("Trasferimento completato");
-	cout << "Tempo trascorso: " << elapsed1 << " ms" << endl;
+		cout << "Tempo trascorso: " << elapsed1 << " ms" << endl;
 	cudaMemGetInfo(&free2, &total);
 	cout << "GPU -> memory: memoria occupata dalle matrici = " << (free1 - free2) / (1024*1024) << " MegaBytes" << endl;
-	cout << endl;
+		cout << endl;
 
 
 	// Dimensionamento della griglia di blocchi e thread (max 1024 thread per blocco)
 	puts("Costruzione griglia di calcolo per la GPU");
 
-	dim3 block(BLKSIZE, BLKSIZE); // 32 * 32 = 1024
-	dim3 grid((int)ceil((righeM1 + BLKSIZE - 1) / BLKSIZE), (int)ceil((colonneM2 + BLKSIZE - 1) / BLKSIZE)); //trovo il valore intero più grande per costruire la griglia di dimensioni adeguate
+	dim3 block(BLKSIZE, BLKSIZE); // 32 * 32 = 1024 (colonne,righe)
+	dim3 grid((int)ceil((colonneM2 + BLKSIZE - 1) / BLKSIZE), (int)ceil((righeM1 + BLKSIZE - 1) / BLKSIZE)); //trovo il valore intero più grande per costruire la griglia di dimensioni adeguate (colonne,righe)
 
 	cout << endl;
 
@@ -247,13 +318,48 @@ int main() {
 	cudaEventRecord(start);
 
 	matrix_mulGPU << <grid, block >> > (matriceGPU, matRGPU, matResGPU);
+		cudaCheckErrors("Esecuzione del kernel Fallita");
+
+	cudaEventRecord(stop);
+	cudaEventSynchronize(stop);
+	cudaEventElapsedTime(&elapsed2, start, stop);
+
+
+	// Condizione del WDDM TDR DELAY
+	if ((elapsed2 / 1000) == 0 || (elapsed2 / 1000) > 5) {
+		cout << endl << "Sono passati piu' di 5 secondi, e' intervenuto il  TIMEOUT DETECTION & RECOVERY (WDDM TDR DELAY)" << endl;
+		cout << "PROGRAMMA ARRESTATO, IMMETTERE MATRICI DI DIMENSIONI MINORI" << endl << endl;
+		system("pause");
+			return -1;
+	}
+
+	puts("Calcolo sulla GPU completato");
+	cout << "Tempo trascorso: " << elapsed2 / 1000 << " s" << endl;
+	cout << endl;
+
+
+	// Esecuzione funzione sulla GPU usando la shared memory
+	puts(" -- Avvio calcolo sulla GPU --");
+
+	cudaEventRecord(start);
+
+	matrix_mulGPU << <grid, block >> > (matriceGPU, matRGPU, matResGPUSH);
 	cudaCheckErrors("Esecuzione del kernel Fallita");
 
 	cudaEventRecord(stop);
 	cudaEventSynchronize(stop);
 	cudaEventElapsedTime(&elapsed2, start, stop);
 
-	puts("Calcolo sulla GPU completato");
+
+	// Condizione del WDDM TDR DELAY
+	if ((elapsed2 / 1000) == 0 || (elapsed2 / 1000) > 5) {
+		cout << endl << "Sono passati piu' di 5 secondi, e' intervenuto il  TIMEOUT DETECTION & RECOVERY (WDDM TDR DELAY)" << endl;
+		cout << "PROGRAMMA ARRESTATO, IMMETTERE MATRICI DI DIMENSIONI MINORI" << endl << endl;
+		system("pause");
+		return -1;
+	}
+
+	puts(" -- Calcolo sulla GPU completato --");
 	cout << "Tempo trascorso: " << elapsed2 / 1000 << " s" << endl;
 	cout << endl;
 
@@ -264,7 +370,7 @@ int main() {
 	cudaEventRecord(start);
 
 	cudaMemcpyAsync(matResHost, matResGPU, dimRes, cudaMemcpyDeviceToHost);
-	cudaCheckErrors("Trasferimento fallito\n");
+		cudaCheckErrors("Trasferimento fallito\n");
 
 	cudaEventRecord(stop);
 	cudaEventSynchronize(stop);
@@ -273,7 +379,25 @@ int main() {
 	puts("Trasferimento completato");
 	cout << "Tempo trascorso: " << elapsed3 << " ms" << endl;
 	printf("Larghezza di banda utilizzata (Device2H) per trasferire la matrice dei risultati (GB/s): %f\n", dimRes * 1e-6 / elapsed3);
-	cout << endl;
+		cout << endl;
+
+
+		// Trasferimento dei valori della matrice risultante dalla compilazione sulla GPU alla variabile Host (SHARED MEMORY)
+		puts("Trasferimento valori della GPU alla matrice del Host del risultato");
+
+		cudaEventRecord(start);
+
+		cudaMemcpyAsync(matResHostSH, matResGPUSH, dimRes, cudaMemcpyDeviceToHost);
+		cudaCheckErrors("Trasferimento fallito\n");
+
+		cudaEventRecord(stop);
+		cudaEventSynchronize(stop);
+		cudaEventElapsedTime(&elapsed3, start, stop);
+
+		puts("Trasferimento completato");
+		cout << "Tempo trascorso: " << elapsed3 << " ms" << endl;
+		printf("Larghezza di banda utilizzata (Device2H) per trasferire la matrice dei risultati (GB/s): %f\n", dimRes * 1e-6 / elapsed3);
+		cout << endl;
 
 
 	// Esecuzione funzione sulla CPU
@@ -288,9 +412,10 @@ int main() {
 
 	puts("Calcolo sulla CPU eseguito");
 	cout << "Tempo trascorso: " << tempo << " s" << endl;
-	cout << endl;
+		cout << endl;
 
 
+	// Funzione di confronto degli elementi nelle matrici ottenute dalla CPU e dalla GPU
 	puts("Controllo dei risultati");
 	bool esito = true;
 
@@ -298,6 +423,16 @@ int main() {
 		if (esito != false) {
 			for (int j = 0; j < colonneM2; j++) {
 				if (matResCPU[i*colonneM2 + j] != matResHost[i*colonneM2 + j]) {
+					cout << " --> ERRORE" << endl << endl;
+					esito = false;
+					break;
+				}
+				else if (matResCPU[i*colonneM2 + j] != matResHostSH[i*colonneM2 + j]) {
+					cout << " --> ERRORE" << endl << endl;
+					esito = false;
+					break;
+				}
+				else if (matResHostSH[i*colonneM2 + j] != matResHost[i*colonneM2 + j]) {
 					cout << " --> ERRORE" << endl << endl;
 					esito = false;
 					break;
@@ -317,12 +452,15 @@ int main() {
 	cudaFree(matriceGPU);
 	cudaFree(matRGPU);
 	cudaFree(matResGPU);
+	cudaFree(matResGPUSH);
 
 	cudaFreeHost(matRandHost);
 	cudaFreeHost(matriceHost);
 	cudaFreeHost(matResHost);
+	cudaFreeHost(matResHostSH);
 
 	cout << endl << endl;
 	system("pause");
-	return 0;
+
+		return 0;
 }
