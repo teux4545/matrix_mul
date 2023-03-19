@@ -513,6 +513,5 @@ int main() {
 
 	cout << endl << endl << endl;
 	system("pause");
-
 		return 0;
 }
