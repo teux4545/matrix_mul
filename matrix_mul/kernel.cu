@@ -3,8 +3,10 @@
 #include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string>
 #include <time.h>
 #include <math.h>
+#include "TextTable.h"
 
 // librerie CUDA
 #include "cuda_runtime.h"
@@ -59,13 +61,14 @@ size_t dimRes = (righeM1*colonneM2) * sizeof(int);
 
 // Dimensioni del blocco (x,y) impostate uguali in modo che formino blocchi quadrati esattamente di 1024 threads (limite imposto dall'hardware)
 #define BLKSIZE 32
-
+#define BLK 16
 
 // Funzione eseguita sulla GPU (calcolo parallelo)
 // viene utilizzata la memoria globale (qui le variabili infatti possono essere allocate dinamicamente con le APIs cudamalloc e cudamallocHost)
 __global__ void matrix_mulGPU(int *a, int *b, int *c) {
 
 	// Inizializzo le coordinate dei thread all'interno della griglia (col e row identificano un singolo thread specifico)
+	// Vengono mappate le posizioni degli elementi delle metrici facendole corrispondere alle posizioni dei thread ogni elemente verra elaborato sul thread per lui predisposto
 	int col = blockIdx.x * blockDim.x + threadIdx.x;
 	int row = blockIdx.y * blockDim.y + threadIdx.y;
 
@@ -73,12 +76,13 @@ __global__ void matrix_mulGPU(int *a, int *b, int *c) {
 
 	int somma = 0;
 
-	/*  viene posta una condizione di controllo affinché vengano chiamati solo i thread effettivamente predisposti per le operazioni di moltiplicazione
-	    infatti la griglia creata è impostata sempre leggermente più grande delle dimensioni del prodotto righe*colonne  */
+	/*  viene posta una condizione di controllo affinché vengano presi solo gli elementi opportuni negli array delle matrici
+	    (la griglia creata è impostata sempre leggermente più grande delle dimensioni del prodotto righe*colonne)  */
 
 	if (row < righeM1 && col < colonneM2) {
 
-		/*  l'iterazione parte: per la matrice M1 si percorrono le righe della griglia (thread posti orizzontalmente sull'asse x, cioè le colonneM1)
+		/*  l'iterazione parte ed è svolta simultaneamente per ogni gruppo (riga/colonna -> y/x) di thread: 
+		    per la matrice M1 si percorrono le righe della griglia (thread posti orizzontalmente sull'asse x, cioè le colonneM1)
 		    per la matrice M2 invece accade la stessa cosa ma si procede scorrendo lungo i thread posti verticalmente (asse y, cioè le righeM2)
 		    row e col mantengono "fissato" il calcolo sulle righe e colonne corrispondenti  */
 
@@ -88,9 +92,12 @@ __global__ void matrix_mulGPU(int *a, int *b, int *c) {
 
 			somma += a[row * colonneM1 + i] * b[i * colonneM2 + col];
 			// la durata computazionale del processo è data proprio da quest'ultima stringa che dipende direttamente dalle dimensioni delle matrici in esame: il calcolo effettuato è (M1*M2)
-
+			__syncthreads();
 		}
-		// alla fine di ogni iterazione vengono popolati ordinatamente in modo crescente gli elementi nell'array del risultato
+		/* alla fine di ogni iterazione vengono popolati in modo gli elementi nell'array del risultato.
+		   Ad esempio:
+		   l' elemento [0,0] della nuova matrice sarà il risultato della somma di tutti i prodotti tra gli elementi della riga 0 della prima matrice 
+		   e egli elemnti della colonna 0 della seconda matrice  */
 
 		c[row * colonneM2 + col] = somma;
 	}
@@ -98,33 +105,40 @@ __global__ void matrix_mulGPU(int *a, int *b, int *c) {
 
 __global__ void matrix_mulGPUShared(int *a, int *b, int *c) {
 
-	__shared__ int sA[BLKSIZE][BLKSIZE];   // sA usa un blocco da 32*32 = 1024 thread
-	__shared__ int sB[BLKSIZE][BLKSIZE];   // sB usa un blocco da 32*32 = 1024 thread
+	// queste due matrici lavoreranno sulla shared memory (sotto-matrici)
+	// più i blocchi sono piccoli più lavora veloce la funzione
+	__shared__ int sA[BLK][BLK];   // sA usa un blocco da 32*32 = 1024 thread
+	__shared__ int sB[BLK][BLK];   // sB usa un blocco da 32*32 = 1024 thread
 
+	// coordinate dei thread
 	int row = blockDim.y * blockIdx.y + threadIdx.y;
 	int col = blockDim.x * blockIdx.x + threadIdx.x;
-
+	
 	int somma = 0;
+	// inizializzo gli elementi delle sottomatrici a zero
 	sA[threadIdx.y][threadIdx.x] = 0;
 	sB[threadIdx.y][threadIdx.x] = 0;
+		
+	for (int i = 0; i < (((colonneM1 - 1) / BLK) + 1); i++) {
+		if ((row < righeM1) && (threadIdx.x + (i * BLK)) < colonneM1) {
+			sA[threadIdx.y][threadIdx.x] = a[(row * colonneM1) + threadIdx.x + (i * BLK)];
+		}
+		else {
+			sA[threadIdx.y][threadIdx.x] = 0;
+		}
 
-	for (int ph = 0; ph < (((colonneM1 - 1) / BLKSIZE) + 1); ph++) {
-		if ((row < righeM1) && (threadIdx.x + (ph * BLKSIZE)) < colonneM1) {
-			sA[threadIdx.y][threadIdx.x] = a[(row * colonneM1) + threadIdx.x + (ph * BLKSIZE)];
+		if (col < colonneM2 && (threadIdx.y + i * BLK) < righeM2) {
+			sB[threadIdx.y][threadIdx.x] = b[(threadIdx.y + i * BLK) * colonneM2 + col];
 		}
 		else {
-			sA[threadIdx.y][threadIdx.x] = 0.0;
+			sB[threadIdx.y][threadIdx.x] = 0;
 		}
-		if (col < colonneM2 && (threadIdx.y + ph * BLKSIZE) < righeM2) {
-			sB[threadIdx.y][threadIdx.x] = b[(threadIdx.y + ph * BLKSIZE) * colonneM2 + col];
-		}
-		else {
-			sB[threadIdx.y][threadIdx.x] = 0.0;
-		}
+		
 		__syncthreads(); // errore di Intellisense, non comporta problemi durante l'esecuzione
 
-		for (int j = 0; j < BLKSIZE; ++j) {
+		for (int j = 0; j < BLK; ++j) {
 			somma += sA[threadIdx.y][j] * sB[j][threadIdx.x];
+			__syncthreads();
 		}
 	}
 	if (row < righeM1 && col < colonneM2) {
@@ -196,14 +210,15 @@ int main() {
 
 	float elapsed1 = 0; // time in ms
 	float elapsed2 = 0; // time in ms
+	float elapsedsh = 0; // time in ms
 	float elapsed3 = 0; // time in ms
 
 	// Clock per calcolare la durata della funzione eseguita sulla CPU
 	clock_t inizio, fine;
 	float tempo;
 
-	puts(" ____Operazioni di moltiplicazione matriciale a conftonto CPU vs GPU____");
-	cout << endl;
+	puts(" ____OPERAZIONI DI MOLTIPLICAZIONE MATRICIALE A CONFRONTO, CPU vs GPU____");
+		cout << endl << endl;
 
 	// Restituisce alcuni parametri della scheda NVidia in uso
 	cudaDeviceProp prop;
@@ -216,7 +231,7 @@ int main() {
 
 	printf(" - Device: %s\n", prop.name);
 	cout << " - GPU -> memory: free = " << free1 / (1024 * 1024) << " MegaBytes, total = " << total / (1024*1024*1024) << " GigaBytes" << endl;
-	cout << endl;
+		cout << endl << endl;
 
 	// Condizione di controllo  per confrontare le dimensioni delle matrici e non generare eccezioni durante l'elaborazione
 	if (righeM2 != colonneM1) {
@@ -228,15 +243,17 @@ int main() {
 		return -1;
 	}
 
+	cout << fixed << setprecision(3);
 
-	puts(" -- Allocazione delle variabili Host nella memoria --");
+
+	puts(" - Allocazione delle variabili Host (RAM) -");
 	// Allocazione matrice che si andrà a moltiplicare a quelle presenti nelle memorie
 
 	int* matRandHost;
 	cudaMallocHost((void **)&matRandHost, dimM2);
 
 	// Generazione valori randomici e popolamento matrice
-	puts(" - Generazione valori randomici per la prima e la seconda matrice");
+	puts("    Generazione valori randomici per la prima e la seconda matrice");
 
 	for (int i = 0; i < righeM2; i++)
 		for (int j = 0; j < colonneM2; j++)
@@ -259,12 +276,12 @@ int main() {
 	cudaMallocHost((void **)&matResHostSH, dimRes);
 	matResCPU = (int *)malloc(dimRes);
 
-	puts(" - Allocazione e popolamento matrici completati");
-		cout << endl;
+	puts("    Allocazione e popolamento matrici completati");
+		cout << endl << endl;
 
 
 	// Allocazione di memoria per le variabili che lavoreranno sulla GPU
-	puts(" -- Allocazione variabili nella memoria della GPU --");
+	puts(" - Allocazione variabili nella memoria della GPU -");
 
 	int *matriceGPU, *matRGPU, *matResGPU, *matResGPUSH;
 
@@ -277,12 +294,12 @@ int main() {
 	cudaMalloc((void **)&matResGPUSH, dimRes);
 		cudaCheckErrors("Allocazione fallita");
 
-	puts(" - Allocazione completata");
-		cout << endl;
+	puts("    Allocazione completata");
+		cout << endl << endl;
 
 
 	// Copia dei valori della prima e seconda matrice (host) nelle variabili device
-	puts(" -- Trasferimento valori delle due matrici nella GPU --");
+	puts(" - Trasferimento valori delle due matrici nella GPU -");
 
 	cudaEventRecord(start);
 
@@ -290,31 +307,36 @@ int main() {
 		cudaCheckErrors("Copia dei dati da Host a Device fallita");
 	cudaMemcpy(matRGPU, matRandHost, dimM2, cudaMemcpyHostToDevice);
 		cudaCheckErrors("Copia dei dati da Host a Device fallita");
+
+	// questi due cudaMemcpy possono essere omesse perché non viene copiato nulla visto che le matrici dei risultati sono vuote
 	cudaMemcpy(matResGPU, matResHost, dimRes, cudaMemcpyHostToDevice);
+		cudaCheckErrors("Copia dei dati da Host a Device fallita");
+	cudaMemcpy(matResGPUSH, matResHost, dimRes, cudaMemcpyHostToDevice);
 		cudaCheckErrors("Copia dei dati da Host a Device fallita");
 
 	cudaEventRecord(stop);
 	cudaEventSynchronize(stop);
 	cudaEventElapsedTime(&elapsed1, start, stop);
 
-	puts(" - Trasferimento completato");
-		cout << " - Tempo trascorso: " << elapsed1 << " ms" << endl;
+	puts("    Trasferimento completato");
+		cout << "    Tempo trascorso: " << elapsed1 << " ms" << endl;
 	cudaMemGetInfo(&free2, &total);
-	cout << " - GPU -> memory: memoria occupata dalle matrici = " << (free1 - free2) / (1024*1024) << " MegaBytes" << endl;
-		cout << endl;
+		cout << "    GPU -> memory: memoria occupata dalle matrici = " << (free1 - free2) / (1024*1024) << " MegaBytes" << endl;
+		printf("    Larghezza di banda utilizzata (Host2D) durante il caricamento delle matrici (GB/s): %f\n", ((dimRes * 2) + dimM1 + dimM2) * 1e-6 / elapsed1);
+		cout << endl << endl;
 
 
 	// Dimensionamento della griglia di blocchi e thread (max 1024 thread per blocco)
-	puts(" -- Costruzione griglia di calcolo per la GPU --");
+	puts(" - Costruzione griglia di calcolo per la GPU -");
 
 	dim3 block(BLKSIZE, BLKSIZE); // 32 * 32 = 1024 (colonne,righe)
 	dim3 grid((int)ceil((colonneM2 + BLKSIZE - 1) / BLKSIZE), (int)ceil((righeM1 + BLKSIZE - 1) / BLKSIZE)); //trovo il valore intero più grande per costruire la griglia di dimensioni adeguate (colonne,righe)
 
-	cout << endl;
+		cout << endl;
 
 
 	// Esecuzione funzione sulla GPU
-	puts(" -- Avvio calcolo sulla GPU --");
+	puts(" - Avvio calcolo sulla GPU -");
 
 	cudaEventRecord(start);
 
@@ -334,75 +356,75 @@ int main() {
 			return -1;
 	}
 
-	puts(" - Calcolo sulla GPU completato");
-	cout << " - Tempo trascorso: " << elapsed2 / 1000 << " s" << endl;
+	puts("    Calcolo sulla GPU completato");
+	cout << "    Tempo trascorso: " << (elapsed2 / 1000) << " s" << endl;
+	cout << endl << endl;
+
+
+	// Dimensionamento della griglia di blocchi e thread (max 1024 thread per blocco)
+	puts(" - Costruzione griglia di calcolo per la GPU (SH) -");
+
+	dim3 blocky(BLK, BLK); 
+	dim3 gridy((int)ceil((colonneM2 + BLK - 1) / BLK), (int)ceil((righeM1 + BLK - 1) / BLK)); 
+
 	cout << endl;
 
 
 	// Esecuzione funzione sulla GPU usando la shared memory
-	puts(" -- Avvio calcolo sulla GPU utilizzando la Shared Memory --");
-
+	puts(" - Avvio calcolo sulla GPU utilizzando la Shared Memory -");
+	
 	cudaEventRecord(start);
 
-	matrix_mulGPUShared << <grid, block >> > (matriceGPU, matRGPU, matResGPUSH);
+	matrix_mulGPUShared << <gridy, blocky >> > (matriceGPU, matRGPU, matResGPUSH);
 	cudaCheckErrors("Esecuzione del kernel Fallita");
 
 	cudaEventRecord(stop);
 	cudaEventSynchronize(stop);
-	cudaEventElapsedTime(&elapsed2, start, stop);
+	cudaEventElapsedTime(&elapsedsh, start, stop);
 
 
 	// Condizione del WDDM TDR DELAY
-	if ((elapsed2 / 1000) == 0 || (elapsed2 / 1000) > 5) {
+	if ((elapsedsh / 1000) == 0 || (elapsedsh / 1000) > 5) {
 		cout << endl << "Sono passati piu' di 5 secondi, e' intervenuto il  TIMEOUT DETECTION & RECOVERY (WDDM TDR DELAY)" << endl;
 		cout << "PROGRAMMA ARRESTATO, IMMETTERE MATRICI DI DIMENSIONI MINORI" << endl << endl;
 		system("pause");
 		return -1;
 	}
 
-	puts(" - Calcolo sulla GPU completato");
-	cout << " - Tempo trascorso: " << elapsed2 / 1000 << " s" << endl;
-	cout << endl;
+	puts("    Calcolo sulla GPU completato");
+		cout << "    Tempo trascorso: " << (elapsedsh / 1000) << " s" << endl;
+		cout << endl << endl;
 
 
 	// Trasferimento dei valori della matrice risultante dalla compilazione sulla GPU alla variabile Host
-	puts(" -- Trasferimento valori della GPU alla matrice del Host del risultato --");
+	puts(" - Trasferimento valori della GPU alla matrice del Host del risultato (GM & SM) -");
 
 	cudaEventRecord(start);
 
-	cudaMemcpyAsync(matResHost, matResGPU, dimRes, cudaMemcpyDeviceToHost);
+	/* Non viene usato cudaMemcpyAsync (che assicura di avere tutti i dati prima di procedere alla loro elaborazione) per due motivi:
+
+	   1. abbiamo cudaEventSynchronize che assicura, dopo essere stato chiamato in un blocco cudaEventRecord, 
+	   che tutte le operazioni del device siano concluse prima di procedere con l'istruzione successiva
+
+	   2. c'è tempo di recuperarli durante la lenta esecuzione del calcolo sulla CPU (potrebbe non essere valido per matrici molto piccole) */
+
+	cudaMemcpy(matResHost, matResGPU, dimRes, cudaMemcpyDeviceToHost);
+		cudaCheckErrors("Trasferimento fallito\n");
+	cudaMemcpy(matResHostSH, matResGPUSH, dimRes, cudaMemcpyDeviceToHost);
 		cudaCheckErrors("Trasferimento fallito\n");
 
 	cudaEventRecord(stop);
 	cudaEventSynchronize(stop);
 	cudaEventElapsedTime(&elapsed3, start, stop);
 
-	puts(" - Trasferimento completato");
-	cout << " - Tempo trascorso: " << elapsed3 << " ms" << endl;
-	printf(" - Larghezza di banda utilizzata (Device2H) per trasferire la matrice dei risultati (GB/s): %f\n", dimRes * 1e-6 / elapsed3);
-		cout << endl;
-
-
-		// Trasferimento dei valori della matrice risultante dalla compilazione sulla GPU alla variabile Host (SHARED MEMORY)
-		puts(" -- Trasferimento valori della GPU alla matrice del Host del risultato (SM) --");
-
-		cudaEventRecord(start);
-
-		cudaMemcpyAsync(matResHostSH, matResGPUSH, dimRes, cudaMemcpyDeviceToHost);
-		cudaCheckErrors("Trasferimento fallito\n");
-
-		cudaEventRecord(stop);
-		cudaEventSynchronize(stop);
-		cudaEventElapsedTime(&elapsed3, start, stop);
-
-		puts(" - Trasferimento completato");
-		cout << " - Tempo trascorso: " << elapsed3 << " ms" << endl;
-		printf(" - Larghezza di banda utilizzata (Device2H) per trasferire la matrice dei risultati (GB/s): %f\n", dimRes * 1e-6 / elapsed3);
-		cout << endl;
+	puts("    Trasferimento completato");
+		cout << "    Tempo trascorso: " << elapsed3 << " ms" << endl;
+		printf("    Larghezza di banda utilizzata (Device2H) durante il trasferimento delle matrici dei risultati (GB/s): %f\n", dimRes * 2 * 1e-6 / elapsed3);
+		cout << endl << endl;
 
 
 	// Esecuzione funzione sulla CPU
-	puts(" -- Avvio calcolo sulla CPU --");
+	puts(" - Avvio calcolo sulla CPU -");
 
 	inizio = clock();
 
@@ -411,13 +433,13 @@ int main() {
 	fine = clock();
 	tempo = ((float)(fine - inizio)) / CLOCKS_PER_SEC;
 
-	puts(" - Calcolo sulla CPU eseguito");
-	cout << " - Tempo trascorso: " << tempo << " s" << endl;
-		cout << endl;
+	puts("    Calcolo sulla CPU eseguito");
+	cout << "    Tempo trascorso: " << tempo << " s" << endl;
+		cout << endl << endl;
 
 
 	// Funzione di confronto degli elementi nelle matrici ottenute dalla CPU e dalla GPU
-	puts(" -- Controllo dei risultati --");
+	puts(" - Controllo dei risultati -");
 	bool esito = true;
 
 	for (int i = 0; i < righeM1; i++) {
@@ -445,10 +467,38 @@ int main() {
 	}
 
 	if (esito)
-		puts(" - Esito: completato senza aver riscontrato errori");
+		puts("    Esito: COMPLETATO SENZA AVER INDIVIDUATO INCONGRUENZE");
 	else
-		cout << " - Esito: ATTENZIONE SONO STATI RILEVATI VALORI DISCORDANTI";
+		cout << "    Esito: ATTENZIONE SONO STATI RILEVATI VALORI DISCORDANTI";
 
+
+	// visualizzazione dei tempi come tabella 
+	cout << endl;
+
+	string elap2 = to_string(elapsed2/1000);
+	string e2 = elap2.substr(0,6);
+	string elapsh = to_string(elapsedsh/1000);
+	string esh = elapsh.substr(0, 6);
+	string tem = to_string(tempo);
+	string te = tem.substr(0, 6);
+
+	TextTable t('-', '|', '+');
+
+	t.add(" GPU (using Global Memory) [s] ");
+	t.add(" GPU (using Shared Memory) [s] ");
+	t.add(" CPU [s] ");
+	t.endOfRow();
+
+	t.add(e2);
+	t.add(esh);
+	t.add(te);
+	t.endOfRow();
+
+	t.setAlignment(2, TextTable::Alignment::RIGHT);
+    cout << t;
+
+
+	// Deallocazione di tutte le variabili nelle memorie
 
 	cudaFree(matriceGPU);
 	cudaFree(matRGPU);
@@ -460,7 +510,8 @@ int main() {
 	cudaFreeHost(matResHost);
 	cudaFreeHost(matResHostSH);
 
-	cout << endl << endl;
+
+	cout << endl << endl << endl;
 	system("pause");
 
 		return 0;
