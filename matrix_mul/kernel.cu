@@ -92,7 +92,9 @@ __global__ void matrix_mulGPU(int *a, int *b, int *c) {
 
 			somma += a[row * colonneM1 + i] * b[i * colonneM2 + col];
 			// la durata computazionale del processo è data proprio da quest'ultima stringa che dipende direttamente dalle dimensioni delle matrici in esame: il calcolo effettuato è (M1*M2)
-			__syncthreads();
+
+			// si sincronizzano tutti i thread così che tutte le operazioni (calcolo dei risultati) finiscano nello stesso momento
+			__syncthreads(); // errore di Intellisense, non comporta problemi durante l'esecuzione 
 		}
 		/* alla fine di ogni iterazione vengono popolati in modo gli elementi nell'array del risultato.
 		   Ad esempio:
@@ -105,20 +107,24 @@ __global__ void matrix_mulGPU(int *a, int *b, int *c) {
 
 __global__ void matrix_mulGPUShared(int *a, int *b, int *c) {
 
-	// queste due matrici lavoreranno sulla shared memory (sotto-matrici)
+	// queste due matrici vengono caricate sulla shared memory e lì lavoreranno(sotto-matrici)
 	// più i blocchi sono piccoli più lavora veloce la funzione
-	__shared__ int sA[BLK][BLK];   // sA usa un blocco da 32*32 = 1024 thread
-	__shared__ int sB[BLK][BLK];   // sB usa un blocco da 32*32 = 1024 thread
+	__shared__ int sA[BLK][BLK];   // sA e sB usano blocchi da 16*16 = 256 thread
+	__shared__ int sB[BLK][BLK];   
 
 	// coordinate dei thread
 	int row = blockDim.y * blockIdx.y + threadIdx.y;
 	int col = blockDim.x * blockIdx.x + threadIdx.x;
 	
 	int somma = 0;
+
 	// inizializzo gli elementi delle sottomatrici a zero
 	sA[threadIdx.y][threadIdx.x] = 0;
 	sB[threadIdx.y][threadIdx.x] = 0;
 		
+	// l'iterazione prima assegna in modo opportuno gli elementi ai blocchi e non disponendoli solo in righe e colonne di thread.
+	// Con la memoria globale si prende come punto di riferimento la griglia, qui vengono sfruttati i blocchi
+	// si fa in modo che i dati vengano caricati in blocchi creati appositamente a partire dalle dimensioni delle matrici di partenza adattandoli
 	for (int i = 0; i < (((colonneM1 - 1) / BLK) + 1); i++) {
 		if ((row < righeM1) && (threadIdx.x + (i * BLK)) < colonneM1) {
 			sA[threadIdx.y][threadIdx.x] = a[(row * colonneM1) + threadIdx.x + (i * BLK)];
@@ -134,6 +140,7 @@ __global__ void matrix_mulGPUShared(int *a, int *b, int *c) {
 			sB[threadIdx.y][threadIdx.x] = 0;
 		}
 		
+		// tutti i blocchi dovranno aver finito nello stesso istante
 		__syncthreads(); // errore di Intellisense, non comporta problemi durante l'esecuzione
 
 		for (int j = 0; j < BLK; ++j) {
@@ -218,7 +225,7 @@ int main() {
 	float tempo;
 
 	puts(" ____OPERAZIONI DI MOLTIPLICAZIONE MATRICIALE A CONFRONTO, CPU vs GPU____");
-		cout << endl << endl;
+	cout << endl;
 
 	// Restituisce alcuni parametri della scheda NVidia in uso
 	cudaDeviceProp prop;
@@ -439,7 +446,9 @@ int main() {
 
 
 	// Funzione di confronto degli elementi nelle matrici ottenute dalla CPU e dalla GPU
+    // Potrebbe essere usato un singolo ciclo con i<(righeM1*colonneM2)
 	puts(" - Controllo dei risultati -");
+
 	bool esito = true;
 
 	for (int i = 0; i < righeM1; i++) {
@@ -476,11 +485,11 @@ int main() {
 	cout << endl;
 
 	string elap2 = to_string(elapsed2/1000);
-	string e2 = elap2.substr(0,6);
+	string e2 = elap2.substr(0, 7);
 	string elapsh = to_string(elapsedsh/1000);
-	string esh = elapsh.substr(0, 6);
+	string esh = elapsh.substr(0, 7);
 	string tem = to_string(tempo);
-	string te = tem.substr(0, 6);
+	string te = tem.substr(0, 8);
 
 	TextTable t('-', '|', '+');
 
@@ -494,7 +503,7 @@ int main() {
 	t.add(te);
 	t.endOfRow();
 
-	t.setAlignment(2, TextTable::Alignment::RIGHT);
+	t.setAlignment(3, TextTable::Alignment::RIGHT);
     cout << t;
 
 
