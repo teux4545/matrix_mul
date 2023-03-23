@@ -15,7 +15,7 @@ Si tratta dunque di mettere in risalto i benefici di un calcolo eseguito in para
 
 Architettura 3rd genrazione intel (Ivy Bridge) e architettura Fermi: 
 <img src="https://github.com/teux4545/matrix_mul/blob/master/Ivy_Bridge.webp"></img><br>
-<img src="https://github.com/teux4545/matrix_mul/blob/master/Architettura_Fermi.png"></img><br>
+<img src="https://github.com/teux4545/matrix_mul/blob/master/Fermi_Architecture.png"></img><br>
 ## Inizializzazione dei dati e gestione della memoria
 
 ## Come lavora il kernel eseguito sulla GPU
