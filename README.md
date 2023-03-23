@@ -15,10 +15,10 @@ Si tratta dunque di mettere in risalto i benefici di un calcolo eseguito in para
 </ul>
 
 <b>Architettura 3rd genrazione intel (Ivy Bridge) (CPU):</b> 
-<img src="https://github.com/teux4545/matrix_mul/blob/master/Ivy_Bridge_Architecture.webp"></img><br>
+<img src="https://github.com/teux4545/matrix_mul/blob/master/Ivy_Bridge_Architecture.webp" width="642" height="443"></img><br>
 
-<b>Architettura Fermi (GPU):</b>
-<img src="https://github.com/teux4545/matrix_mul/blob/master/Fermi_Architecture.png"></img><br>
+<b>Architettura Fermi (GPU):</b>                            
+<img src="https://github.com/teux4545/matrix_mul/blob/master/Fermi_Architecture.png" width="642" height="531"></img><br>
 
 ## Inizializzazione dei dati e gestione della memoria
 È stata creato un file '_matrixClass_' contenente la classe Matrice, che specifica le caratteristiche di due matrici e una matrice risultato:
@@ -48,18 +48,19 @@ Tutti i metodi sono corredati di un controllo per eventuali eccezioni che si pos
 
 ## Come lavora il kernel eseguito sulla GPU
 
-Le operazioni, ricapitolate, effettuate dunque per compilare ed eseguire il programma che andrà a sfruttare la GPU sono le seguenti:
-1.  Setup dei dati su host (Allocazione e successiva inizializzazione)
-2.  Allocazione di memoria per i dati sulla GPU  
-3.  Allocazione di memoria per output su host 
-4.  Allocazione di memoria per output su GPU 
-5.  Copia i dati da host a GPU
-6.  <b>Lancia il kernel su GPU</b>
-7.  Copia output da GPU a host 
-8.  Cancella le memorie
+Per operare sulla GPU dobbiamo dapprima predisporre una rappresentazione astratta dei thread che andranno effettivamente ad effettuare le operazioni di calcolo.
+Essenzialmente i raggruppamenti avvengono su due livelli:
+* <b>grid: </b> griglia ordinata di blocchi
+* <b>block: </b>insieme ordinato di thread (per questa configurazione hardware il numero massimo di thread per blocco è 1024)
 
-L'attenzione ora ricade sul sesto punto.
-Affinché l'esecuzione 
+Il lancio del kernel, cioè la funzione eseguita sulla GPU, avviene come per una normale funzione in linguaggio C,<br>
+seguita però poi da tre parentesi angolate '<b><<< ... , ... >>></b>' (caso base) che indicano la configurazione di thread utilizzata per quel kernel, infine troviamo gli argomenti passati alla funzione
+```c++
+matrix_mulGPU << <grid, block >> > (matriceGPU, matRGPU, matResGPU);
+```
+Esecuzione sul kernel:<br>
+<img src="https://github.com/teux4545/matrix_mul/blob/master/kernel-execution-on-gpu.png" width="625" height="438"></img><br>
+
 ## Calcolo sulla CPU
 
 ## Durata delle operazioni
@@ -67,6 +68,7 @@ Affinché l'esecuzione
 ## Controllo dei risultati
 
 ## Gestione delle eccezioni
+
 ```c++
 // Controllo errori cuda
 #define gpuErrchk(ans) { gpuAssert((ans), __FILE__, __LINE__); }
@@ -85,7 +87,12 @@ inline void gpuAssert(cudaError_t code, const char *file, int line, bool abort =
         } \
     } while (0)
 ```
+
 ## Fonti e pagine web utili al progetto
-Fonti documentazione:  https://docs.nvidia.com/cuda/cuda-runtime-api/
+
+- https://docs.nvidia.com/cuda/cuda-runtime-api/
+- https://developer.nvidia.com/blog/cuda-refresher-cuda-programming-model/
+- http://gpu.di.unimi.it/slides/lezione2.pdf
+
 ## Autore
 - <b>Ciucciovè Leonardo</b>
