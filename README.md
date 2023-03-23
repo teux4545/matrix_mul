@@ -33,7 +33,7 @@ Il file ne contiene anche un'altra che inizializza la dimensione dei blocchi di 
 
 Nel file 'kernel.cu', la funzione <i>main</i> dunque esegue tutte le allocazioni di memoria previste usando i tre metodi:
 <ul>
-    <li><b>cudaMallocHost: </b>alloca uno spazio di memoria in bytes nell'Host (attenzione si riduce la dimensione di paging), questa memoria è page-locked, accessibile <U>direttamente</U> dal device (tempi più rapidi di accesso rispetto malloc)</li>
+    <li><b>cudaMallocHost: </b>alloca uno spazio di memoria in bytes nell'Host (attenzione si riduce la dimensione di paging), questa memoria è page-locked, accessibile <u>direttamente</u> dal device (tempi più rapidi di accesso rispetto malloc)</li>
     <li><b>cudaMalloc: </b>alloca memoria sul Device</li>
     <li><b>malloc: </b>alloca memoria sull'Host</li>
 </ul>
