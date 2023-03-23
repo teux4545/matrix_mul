@@ -33,7 +33,7 @@ Il file ne contiene anche un'altra che inizializza la dimensione dei blocchi di 
 
 Nel file '_kernel.cu_', la funzione <b>main</b>, esegue tutte le allocazioni di memoria previste usando i tre metodi:
 <ul>
-    <li><b>cudaMallocHost: </b>alloca uno spazio di memoria in bytes nell'Host <i>(attenzione si riduce la dimensione di paging)</i>, questa memoria è page-locked, accessibile <b>direttamente</b> dal device (tempi più rapidi di accesso rispetto malloc)</li>
+    <li><b>cudaMallocHost: </b>alloca uno spazio di memoria nell'Host <i>(attenzione si riduce la dimensione di paging)</i>, questa memoria è page-locked, accessibile <b>direttamente</b> dal device (tempi più rapidi di accesso rispetto malloc)</li>
     <li><b>cudaMalloc: </b>alloca memoria sul Device</li>
     <li><b>malloc: </b>alloca memoria sull'Host</li>
 </ul>
@@ -60,7 +60,31 @@ matrix_mulGPU << <grid, block >> > (matriceGPU, matRGPU, matResGPU);
 ```
 Esecuzione sul kernel:<br>
 <img src="https://github.com/teux4545/matrix_mul/blob/master/kernel-execution-on-gpu.png" width="625" height="438"></img><br>
+### Funzione eseguita sulla Global Memory
+```c++
+__global__ void matrix_mulGPU(int *a, int *b, int *c) {
 
+	Matrice mat;
+
+	int col = blockIdx.x * blockDim.x + threadIdx.x;
+	int row = blockIdx.y * blockDim.y + threadIdx.y;
+	int somma = 0;
+
+	if (row < mat.righeM1 && col < mat.colonneM2) {
+		for (int i = 0; i < mat.colonneM1; i++) {
+			somma += a[row * mat.colonneM1 + i] * b[i * mat.colonneM2 + col];
+			
+			__syncthreads(); 
+		}
+		c[row * mat.colonneM2 + col] = somma;
+	}
+}
+```
+Ogni kernel CUDA inizia con la dichiarazione '<b>__global__</b>'.<br>
+Si inizializzano poi le coordinate unidimensionali x,y di tutti i thread così che, dal loro indice sapremo che i dati nelle matrici associati a quelle specifiche posizioni verrano elaborati da quegli specifici thread.<br><br>
+Tutti i thread lavorano all'unisono, quasi contemporaneamente, il lavoro dunque sarà distribuito, nel 'for' ogni thread si occuperà di lavorare lungo la riga e la colonna della matrice in cui si identifica, è buona norma mettere una barriera di sincronizzazione per le operazioni svolte, di questo si occuperà '<b>__syncthreads()</b>' che permetterà a tutti i thread di terminare il lavoro nello stesso istante.
+
+### Funzione eseguita sulla Shared Memory
 ## Calcolo sulla CPU
 
 ## Durata delle operazioni
