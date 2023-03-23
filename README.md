@@ -131,7 +131,7 @@ __global__ void matrix_mulGPUShared(int *a, int *b, int *c) {
 ```
 "...La memoria condivisa viene allocata per blocco di thread, quindi tutti i thread del blocco hanno accesso alla stessa memoria condivisa. I thread possono accedere ai dati nella memoria condivisa caricati dalla memoria globale da altri thread all'interno dello stesso blocco di thread. ..." - developer.nvidia.com<br>
 <br>
-In esecuzione viene evidenziato come i tempi di calcolo utilizzando questo metodo sono notevolmente ridotti essendo una memoria 'on chip' (cache), quindi ancora più vicina all'unità di calcolo, infatti è buona norma non caricare questa memoria con troppi dati altrimenti si perderebbe in prestazioni.
+In esecuzione viene evidenziato come i tempi di calcolo, utilizzando questo metodo, sono notevolmente ridotti essendo le variabili '<b>__shared__</b>', caricate su una memoria 'on chip' (cache), quindi ancora più vicina all'unità di calcolo, infatti è buona norma non caricare questa memoria con troppi dati altrimenti si perderebbe in prestazioni.
 		
 ## Calcolo sulla CPU 
 ```c++
@@ -153,11 +153,35 @@ void matrix_mulCPU(int* a, int* b, int* c) {
 }
 ```
 La seguente funzione ha caratteristiche sequenziali, in questo caso è un solo chip, la CPU precisamente, a svolgere tutte le operazioni di calcolo.<br>
-Lo svantaggio della sequenzialità è che si è costretti ad accedere ad un singolo elemento per volta ed elaborarlo, mentre sulla GPU i chip di calcolo accedono al singolo elemento ma la loro computazione e limitata ad esso. (vedere link in fondo)
+Lo svantaggio della sequenzialità è che si è costretti ad accedere ad un singolo elemento per volta ed elaborarlo, mentre sulla GPU i chip di calcolo accedono al singolo elemento ma la loro computazione e limitata ad esso. (vedere link in fondo che ha dominio ecatue.gitlab.io)
+	
 ## Durata delle operazioni
 
 ## Controllo dei risultati
+```c++
+bool checkRes(int *matResCPU, int *matResHost, int *matResHostSH) {
 
+	Matrice mat;
+	bool esito = true;
+
+	for (int i = 0; i < mat.righeM1; i++) {
+		if (esito) {
+			for (int j = 0; j < mat.colonneM2; j++) {
+				if (matResCPU[i*mat.colonneM2 + j] != matResHost[i*mat.colonneM2 + j] || 
+					matResCPU[i*mat.colonneM2 + j] != matResHostSH[i*mat.colonneM2 + j] || 
+					matResHostSH[i*mat.colonneM2 + j] != matResHost[i*mat.colonneM2 + j]) {
+					esito = false;
+					break;
+				}
+			}
+		}
+		else
+			break;
+	}
+	return esito;
+}
+```
+Viene effettuato uno scorrimento lungo tutti gli elementi delle tre matrici dei risultati, interrompendo il ciclo for grazie alla controllo sull'if di una discrepanza di dati
 ## Gestione delle eccezioni
 
 ```c++
