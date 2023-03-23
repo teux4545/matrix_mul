@@ -48,7 +48,7 @@ Tutti i metodi sono corredati di un controllo per eventuali eccezioni che si pos
 
 ## Come lavora il kernel eseguito sulla GPU
 
-Per operare sulla GPU dobbiamo dapprima predisporre una rappresentazione astratta dei thread che andranno effettivamente ad effettuare le operazioni di calcolo.
+Per operare sulla GPU dobbiamo innanzitutto predisporre una rappresentazione astratta dei thread che andranno effettivamente ad effettuare le operazioni di calcolo.
 Essenzialmente i raggruppamenti avvengono su due livelli:
 * <b>grid: </b> griglia ordinata di blocchi
 * <b>block: </b>insieme ordinato di thread (per questa configurazione hardware il numero massimo di thread per blocco è 1024)
@@ -133,8 +133,27 @@ __global__ void matrix_mulGPUShared(int *a, int *b, int *c) {
 <br>
 In esecuzione viene evidenziato come i tempi di calcolo utilizzando questo metodo sono notevolmente ridotti essendo una memoria 'on chip' (cache), quindi ancora più vicina all'unità di calcolo, infatti è buona norma non caricare questa memoria con troppi dati altrimenti si perderebbe in prestazioni.
 		
-## Calcolo sulla CPU    
+## Calcolo sulla CPU 
+```c++
+void matrix_mulCPU(int* a, int* b, int* c) {
 
+	Matrice mat;
+
+	for (int i = 0; i < mat.righeM1; i++) {
+		for (int j = 0; j < mat.colonneM2; j++) {
+			//ogni volta avviene un reset della somma
+			int somma = 0;
+			for (int k = 0; k < mat.colonneM1; k++) {
+				somma += a[i * mat.colonneM1 + k] * b[k * mat.colonneM2 + j];
+			}
+			c[i * mat.colonneM2 + j] = somma;
+		}
+	}
+	return;
+}
+```
+La seguente funzione ha caratteristiche sequenziali, in questo caso è un solo chip, la CPU precisamente, a svolgere tutte le operazioni di calcolo.<br>
+Lo svantaggio della sequenzialità è che si è costretti ad accedere ad un singolo elemento per volta ed elaborarlo, mentre sulla GPU i chip di calcolo accedono al singolo elemento ma la loro computazione e limitata ad esso. (vedere link in fondo)
 ## Durata delle operazioni
 
 ## Controllo dei risultati
@@ -144,7 +163,7 @@ In esecuzione viene evidenziato come i tempi di calcolo utilizzando questo metod
 ```c++
 // Controllo errori cuda
 #define gpuErrchk(ans) { gpuAssert((ans), __FILE__, __LINE__); }
-inline void gpuAssert(cudaError_t code, const char *file, int line, bool abort = true){}
+inline void gpuAssert(cudaError_t code, const char *file, int line){}
 
 #define cudaCheckErrors(msg) \
     do { \
@@ -166,7 +185,8 @@ inline void gpuAssert(cudaError_t code, const char *file, int line, bool abort =
 - https://developer.nvidia.com/blog/cuda-refresher-cuda-programming-model/
 - https://developer.nvidia.com/blog/using-shared-memory-cuda-cc/#:~:text=Shared%20memory%20is%20a%20powerful,mechanism%20for%20threads%20to%20cooperate.
 - http://gpu.di.unimi.it/slides/lezione2.pdf
-
+- https://ecatue.gitlab.io/gpu2018/pages/Cookbook/matrix_multiplication_cuda.html
+Funzioni:
 - https://github.com/fbasatemur/CUDA-Matrix/tree/master/
 - https://gist.github.com/raytroop/120e2d175d95f82edbee436374293420
 
