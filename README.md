@@ -59,8 +59,10 @@ seguita però poi da tre parentesi angolate '<b><<< ... , ... >>></b>' (caso bas
 matrix_mulGPU << <grid, block >> > (matriceGPU, matRGPU, matResGPU);
 ```
 Esecuzione sul kernel:<br>
-<img src="https://github.com/teux4545/matrix_mul/blob/master/kernel-execution-on-gpu.png" width="625" height="438"></img><br>
-### Funzione eseguita sulla Global Memory
+<img src="https://github.com/teux4545/matrix_mul/blob/master/kernel-execution-on-gpu.png" width="625" height="438"></img><br><br>
+Le due funzioni di seguito come quella eseguita sulla CPU sono state prese e integrate da progetti github già disponibili, link in fondo al readme 
+
+### Funzione eseguita utilizzando la Global Memory
 ```c++
 __global__ void matrix_mulGPU(int *a, int *b, int *c) {
 
@@ -82,10 +84,56 @@ __global__ void matrix_mulGPU(int *a, int *b, int *c) {
 ```
 Ogni kernel CUDA inizia con la dichiarazione '<b>__global__</b>'.<br>
 Si inizializzano poi le coordinate unidimensionali x,y di tutti i thread così che, dal loro indice sapremo che i dati nelle matrici associati a quelle specifiche posizioni verrano elaborati da quegli specifici thread.<br><br>
-Tutti i thread lavorano all'unisono, quasi contemporaneamente, il lavoro dunque sarà distribuito, nel 'for' ogni thread si occuperà di lavorare lungo la riga e la colonna della matrice in cui si identifica, è buona norma mettere una barriera di sincronizzazione per le operazioni svolte, di questo si occuperà '<b>__syncthreads()</b>' che permetterà a tutti i thread di terminare il lavoro nello stesso istante.
+Tutti i thread lavorano all'unisono, quasi contemporaneamente, il lavoro dunque sarà distribuito. Nel 'for' ogni thread si occuperà di lavorare lungo la riga e la colonna della matrice in cui si identifica, è buona norma mettere una barriera di sincronizzazione per le operazioni svolte, di questo si occuperà '<b>__syncthreads()</b>' che permetterà a tutti i thread di terminare il lavoro nello stesso istante.
 
-### Funzione eseguita sulla Shared Memory
-## Calcolo sulla CPU
+### Funzione eseguita utilizzando la Shared Memory
+```c++
+__global__ void matrix_mulGPUShared(int *a, int *b, int *c) {
+
+	Matrice mat;
+
+	__shared__ int sA[BLK][BLK];   // sA e sB usano blocchi da 16*16 = 256 thread
+	__shared__ int sB[BLK][BLK];
+
+	int row = blockDim.y * blockIdx.y + threadIdx.y;
+	int col = blockDim.x * blockIdx.x + threadIdx.x;
+	
+	int somma = 0;
+	sA[threadIdx.y][threadIdx.x] = 0;
+	sB[threadIdx.y][threadIdx.x] = 0;
+		
+	for (int i = 0; i < (((mat.colonneM1 - 1) / BLK) + 1); i++) {
+		if ((row < mat.righeM1) && (threadIdx.x + (i * BLK)) < mat.colonneM1) {
+			sA[threadIdx.y][threadIdx.x] = a[(row * mat.colonneM1) + threadIdx.x + (i * BLK)];
+		}
+		else {
+			sA[threadIdx.y][threadIdx.x] = 0;
+		}
+
+		if (col < mat.colonneM2 && (threadIdx.y + i * BLK) < mat.righeM2) {
+			sB[threadIdx.y][threadIdx.x] = b[(threadIdx.y + i * BLK) * mat.colonneM2 + col];
+		}
+		else {
+			sB[threadIdx.y][threadIdx.x] = 0;
+		}
+		
+		__syncthreads(); 
+
+		for (int j = 0; j < BLK; ++j) {
+			somma += sA[threadIdx.y][j] * sB[j][threadIdx.x];
+			__syncthreads();
+		}
+	}
+	if (row < mat.righeM1 && col < mat.colonneM2) {
+		c[row * mat.colonneM2 + col] = somma;
+	}
+}
+```
+"...La memoria condivisa viene allocata per blocco di thread, quindi tutti i thread del blocco hanno accesso alla stessa memoria condivisa. I thread possono accedere ai dati nella memoria condivisa caricati dalla memoria globale da altri thread all'interno dello stesso blocco di thread. ..." - developer.nvidia.com<br>
+<br>
+In esecuzione viene evidenziato come i tempi di calcolo utilizzando questo metodo sono notevolmente ridotti essendo una memoria 'on chip' (cache), quindi ancora più vicina all'unità di calcolo, infatti è buona norma non caricare questa memoria con troppi dati altrimenti si perderebbe in prestazioni.
+		
+## Calcolo sulla CPU    
 
 ## Durata delle operazioni
 
@@ -116,7 +164,11 @@ inline void gpuAssert(cudaError_t code, const char *file, int line, bool abort =
 
 - https://docs.nvidia.com/cuda/cuda-runtime-api/
 - https://developer.nvidia.com/blog/cuda-refresher-cuda-programming-model/
+- https://developer.nvidia.com/blog/using-shared-memory-cuda-cc/#:~:text=Shared%20memory%20is%20a%20powerful,mechanism%20for%20threads%20to%20cooperate.
 - http://gpu.di.unimi.it/slides/lezione2.pdf
+
+- https://github.com/fbasatemur/CUDA-Matrix/tree/master/
+- https://gist.github.com/raytroop/120e2d175d95f82edbee436374293420
 
 ## Autore
 - <b>Ciucciovè Leonardo</b>
