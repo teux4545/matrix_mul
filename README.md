@@ -31,7 +31,7 @@ Si è scelto poi di inizializzare tutti i valori direttamente nelle classe
 
 Il file ne contiene anche un'altra che inizializza la dimensione dei blocchi di thread.
 
-Nel file kernel.cu, il main dunque esegue tutte le allocazioni di memoria previste usando i tre metodi:
+Nel file 'kernel.cu', la funzione <i>main</i> dunque esegue tutte le allocazioni di memoria previste usando i tre metodi:
 <ul>
     <li><b>cudaMallocHost: </b>alloca uno spazio di memoria in bytes nell'Host (attenzione si riduce la dimensione di paging), questa memoria è page-locked, accessibile <U>direttamente</U> dal device (tempi più rapidi di accesso rispetto malloc)</li>
     <li><b>cudaMalloc: </b>alloca memoria sul Device</li>
@@ -44,6 +44,8 @@ Precisazione doverosa è definire:
     <li>Device: riferito a GPU e alla sua memoria</li>
 </ul>
 
+Tutti i metodi sono corredati di un controllo per eventuali eccezioni che si possono generare, trattate più avanti.
+
 ## Come lavora il kernel eseguito sulla GPU
 
 ## Calcolo sulla CPU
@@ -55,6 +57,6 @@ Precisazione doverosa è definire:
 ## Gestione delle eccezioni
 
 ## Fonti e pagine web utili al progetto
-Fonte immagine Ivy Bridge: 
+Fonti documentazione:  https://docs.nvidia.com/cuda/cuda-runtime-api/
 ## Autore
 - <b>Ciucciovè Leonardo</b>
