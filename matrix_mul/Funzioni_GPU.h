@@ -51,7 +51,7 @@ __global__ void matrix_mulGPU(int *a, int *b, int *c) {
 			// si sincronizzano tutti i thread così che tutte le operazioni (calcolo dei risultati) finiscano nello stesso momento
 			__syncthreads(); // errore di Intellisense, non comporta problemi durante l'esecuzione 
 		}
-		/* alla fine di ogni iterazione vengono popolati in modo gli elementi nell'array del risultato.
+		/* alla fine di ogni iterazione vengono popolati nel loro ordine gli elementi nell'array del risultato.
 		   Ad esempio:
 		   l' elemento [0,0] della nuova matrice sarà il risultato della somma di tutti i prodotti tra gli elementi della riga 0 della prima matrice 
 		   e egli elemnti della colonna 0 della seconda matrice  */
