@@ -15,7 +15,7 @@ Si tratta dunque di mettere in risalto i benefici di un calcolo eseguito in para
 </ul>
 
 <b>Architettura 3rd genrazione intel (Ivy Bridge) (CPU):</b> 
-<img src="https://github.com/teux4545/matrix_mul/blob/master/Ivy_Bridge_Architecture.webp" width="642" height="443"></img><br>
+<img src="https://github.com/teux4545/matrix_mul/blob/master/Ivy_Bridge_Architecture.png" width="642" height="443"></img><br>
 
 <b>Architettura Fermi (GPU):</b>                            
 <img src="https://github.com/teux4545/matrix_mul/blob/master/Fermi_Architecture.png" width="642" height="531"></img><br>
