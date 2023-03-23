@@ -37,19 +37,17 @@ bool checkRes(int *matResCPU, int *matResHost, int *matResHostSH) {
 	bool esito = true;
 
 	for (int i = 0; i < mat.righeM1; i++) {
-		if (esito != false) {
+
+		if (esito) {
 			for (int j = 0; j < mat.colonneM2; j++) {
-				if (matResCPU[i*mat.colonneM2 + j] != matResHost[i*mat.colonneM2 + j]) {
+
+				if (matResCPU[i*mat.colonneM2 + j] != matResHost[i*mat.colonneM2 + j] || 
+					matResCPU[i*mat.colonneM2 + j] != matResHostSH[i*mat.colonneM2 + j] || 
+					matResHostSH[i*mat.colonneM2 + j] != matResHost[i*mat.colonneM2 + j]) {
+
 					esito = false;
 					break;
-				}
-				else if (matResCPU[i*mat.colonneM2 + j] != matResHostSH[i*mat.colonneM2 + j]) {
-					esito = false;
-					break;
-				}
-				else if (matResHostSH[i*mat.colonneM2 + j] != matResHost[i*mat.colonneM2 + j]) {
-					esito = false;
-					break;
+
 				}
 			}
 		}
