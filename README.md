@@ -31,9 +31,9 @@ Si è scelto poi di inizializzare tutti i valori direttamente nelle classe
 
 Il file ne contiene anche un'altra che inizializza la dimensione dei blocchi di thread.
 
-Nel file '_kernel.cu_', la funzione <b>main</b> dunque, esegue tutte le allocazioni di memoria previste usando i tre metodi:
+Nel file '_kernel.cu_', la funzione <b>main</b>, esegue tutte le allocazioni di memoria previste usando i tre metodi:
 <ul>
-    <li><b>cudaMallocHost: </b>alloca uno spazio di memoria in bytes nell'Host ***(attenzione si riduce la dimensione di paging)***, questa memoria è page-locked, accessibile <b>direttamente</b> dal device (tempi più rapidi di accesso rispetto malloc)</li>
+    <li><b>cudaMallocHost: </b>alloca uno spazio di memoria in bytes nell'Host <i>(attenzione si riduce la dimensione di paging)</i>, questa memoria è page-locked, accessibile <b>direttamente</b> dal device (tempi più rapidi di accesso rispetto malloc)</li>
     <li><b>cudaMalloc: </b>alloca memoria sul Device</li>
     <li><b>malloc: </b>alloca memoria sull'Host</li>
 </ul>
@@ -50,16 +50,16 @@ Tutti i metodi sono corredati di un controllo per eventuali eccezioni che si pos
 
 Le operazioni, ricapitolate, effettuate dunque per compilare ed eseguire il programma che andrà a sfruttare la GPU sono le seguenti:
 1.  Setup dei dati su host (Allocazione e successiva inizializzazione)
-2.  Alloca memoria per i dati sulla GPU  
-3.  Alloca memoria per output su host 
-4.  Alloca memoria per output su GPU 
+2.  Allocazione di memoria per i dati sulla GPU  
+3.  Allocazione di memoria per output su host 
+4.  Allocazione di memoria per output su GPU 
 5.  Copia i dati da host a GPU
 6.  <b>Lancia il kernel su GPU</b>
 7.  Copia output da GPU a host 
 8.  Cancella le memorie
 
 L'attenzione ora ricade sul sesto punto.
-Affinché la
+Affinché l'esecuzione 
 ## Calcolo sulla CPU
 
 ## Durata delle operazioni
