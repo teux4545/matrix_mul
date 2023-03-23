@@ -13,9 +13,12 @@ Si tratta dunque di mettere in risalto i benefici di un calcolo eseguito in para
 
 <b>GPU:</b> (sito non ufficiale - https://www.notebookcheck.it/NVIDIA-GeForce-710M.106543.0.html#:~:text=La%20NVIDIA%20GeForce%20710M%20%C3%A8,ha%20un%20clock%20notevolmente%20superiore.)
 
-Architettura 3rd genrazione intel (Ivy Bridge) e architettura Fermi: 
-<img src="https://github.com/teux4545/matrix_mul/blob/master/Ivy_Bridge.webp"></img><br>
+Architettura 3rd genrazione intel (Ivy Bridge): 
+<img src="https://github.com/teux4545/matrix_mul/blob/master/Ivy_Bridge_Architecture.webp"></img><br>
+
+Architettura Fermi:
 <img src="https://github.com/teux4545/matrix_mul/blob/master/Fermi_Architecture.png"></img><br>
+
 ## Inizializzazione dei dati e gestione della memoria
 
 ## Come lavora il kernel eseguito sulla GPU
@@ -29,6 +32,6 @@ Architettura 3rd genrazione intel (Ivy Bridge) e architettura Fermi:
 ## Gestione delle eccezioni
 
 ## Fonti e pagine web utili al progetto
-
+Fonte immagine Ivy Bridge: 
 ## Autore
 - <b>Ciucciovè Leonardo</b>
