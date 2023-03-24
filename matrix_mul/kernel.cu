@@ -28,8 +28,6 @@ using namespace std;
 
 
 // Controllo errori cuda
-#define gpuErrchk(ans) { gpuAssert((ans), __FILE__, __LINE__); }
-inline void gpuAssert(cudaError_t code, const char *file, int line, bool abort = true){}
 
 #define cudaCheckErrors(msg) \
     do { \
@@ -40,7 +38,7 @@ inline void gpuAssert(cudaError_t code, const char *file, int line, bool abort =
                 __FILE__, __LINE__); \
                fprintf(stderr, "\n *** FAILED - ABORTING\n"); \
             system("pause");\
-            return 1; \
+            exit(1); \
         } \
     } while (0)
 
@@ -141,7 +139,9 @@ int main() {
 
 	cout << fixed << setprecision(3);
 
+
 	/*----------------------------------------------------------------------------------------------------------------------------------------------------*/
+
 
 	puts(" - Allocazione delle variabili Host (RAM) -");
 	// Allocazione matrice che si andrà a moltiplicare a quelle presenti nelle memorie
@@ -174,10 +174,12 @@ int main() {
 	puts("    Allocazione matrici completata");
 		cout << endl << endl;
 
+
 	/*----------------------------------------------------------------------------------------------------------------------------------------------------*/
 
+
 	// Generazione valori randomici e popolamento matrici
-	puts("    Generazione e popolamento con valori randomici per la prima e la seconda matrice");
+	puts(" - Generazione e popolamento con valori randomici per la prima e la seconda matrice");
 
 	//Rand
 	for (int i = 0; i < mat.righeM2; i++)
@@ -192,7 +194,9 @@ int main() {
 
 	cout << endl << endl;
 
+
 	/*----------------------------------------------------------------------------------------------------------------------------------------------------*/
+
 
 	// Allocazione di memoria per le variabili che lavoreranno sulla GPU
 	puts(" - Allocazione variabili nella memoria della GPU -");
@@ -211,7 +215,9 @@ int main() {
 	puts("    Allocazione completata");
 		cout << endl << endl;
 
+
 	/*----------------------------------------------------------------------------------------------------------------------------------------------------*/
+
 
 	// Copia dei valori della prima e seconda matrice (host) nelle variabili device
 	puts(" - Trasferimento valori delle due matrici nella GPU -");
@@ -230,9 +236,9 @@ int main() {
 	cudaMemcpy(matResGPUSH, matResHost, mat.dimRes, cudaMemcpyHostToDevice);
 		cudaCheckErrors("Copia dei dati da Host a Device fallita\n");
 
-	gpuErrchk(cudaEventRecord(stop));
-	gpuErrchk(cudaEventSynchronize(stop));
-	gpuErrchk(cudaEventElapsedTime(&elapsed1, start, stop));
+	cudaEventRecord(stop);
+	cudaEventSynchronize(stop);
+	cudaEventElapsedTime(&elapsed1, start, stop);
 		cudaCheckErrors("Errore di timing durante copia dei dati\n");
 
 	puts("    Trasferimento completato");
@@ -245,7 +251,9 @@ int main() {
 		printf("    Larghezza di banda utilizzata (Host2D) durante il caricamento delle matrici (GB/s): %f\n", ((mat.dimRes * 2) + mat.dimM1 + mat.dimM2) * 1e-6 / elapsed1);
 		cout << endl << endl;
 
+
 	/*----------------------------------------------------------------------------------------------------------------------------------------------------*/
+
 
 	// Esecuzione funzione sulla GPU
 	puts(" - Avvio calcolo sulla GPU -");
@@ -254,27 +262,30 @@ int main() {
 		cudaCheckErrors("Errore, impossibile avviare cudaEventRecord\n");
 	
 	matrix_mulGPU << <grid, block >> > (matriceGPU, matRGPU, matResGPU);
-	// per intercettare e gestire errori del kernel, la procedura di controllo prevede due istruzioni, la prima è la seguente
-	// la seconda si tratta di lanciare nuovamente la funzione di intercettazione delle eccezioni
-	gpuErrchk(cudaPeekAtLastError()); 
-	
+	// per intercettare e gestire errori del kernel (asincroni), la procedura di controllo prevede due istruzioni, la prima è la seguente che identifica errori sincroni
+	// la seconda si tratta di lanciare nuovamente la funzione di intercettazione delle eccezioni per errori asincroni
+	cudaCheckErrors("Errore sincrono del kernel, parametri della chiamata non validi\n");
+
 	cudaEventRecord(stop);
 	cudaEventSynchronize(stop); chkGPUe = clock();
 
+	// Condizione del WDDM TDR DELAY
 	tempogm = ((int)(chkGPUe - chkGPUs)) / CLOCKS_PER_SEC;
 	if (tempogm >= 5)
 		cout << endl << "Sono passati piu' di 5 secondi, e' intervenuto il  TIMEOUT DETECTION & RECOVERY (WDDM TDR DELAY)" << endl << endl;
 
-	cudaCheckErrors("Esecuzione del kernel Fallita\n"); // (seconda funzione dopo un'azione di sync) gestione degli errori cuda del kernel diversa da una gestione normale
+	cudaCheckErrors("Il kernel ha riscontrato un errore durante l'esecuzione o e' stata interrotta la sua elaborazione\n"); // (seconda funzione dopo un'azione di sync) gestione degli errori cuda del kernel diversa da una gestione normale
 
-	gpuErrchk(cudaEventElapsedTime(&elapsed2, start, stop));
+	cudaEventElapsedTime(&elapsed2, start, stop);
 		cudaCheckErrors("Errore di timing della funzione eseguita sulla GPU (GM)\n");
 
 	puts("    Calcolo sulla GPU completato");
 	cout << "    Tempo trascorso: " << (elapsed2 / 1000) << " s"<< endl;
 	cout << endl << endl;
 
+
 	/*----------------------------------------------------------------------------------------------------------------------------------------------------*/
+
 
 	// Esecuzione funzione sulla GPU usando la shared memory
 	puts(" - Avvio calcolo sulla GPU utilizzando la Shared Memory -");
@@ -289,7 +300,7 @@ int main() {
 		cudaCheckErrors("Errore, impossibile avviare cudaEventRecord\n");
 
 	matrix_mulGPUShared << <gridsh, blocksh >> > (matriceGPU, matRGPU, matResGPUSH);
-		gpuErrchk(cudaPeekAtLastError());
+		cudaCheckErrors("Errore sincrono del kernel, parametri della chiamata non validi\n");
 
 	cudaEventRecord(stop);
 	cudaEventSynchronize(stop); chkGPUe = clock();
@@ -299,16 +310,18 @@ int main() {
 	if (temposm >= 5)
 		cout << endl << "Sono passati piu' di 5 secondi, e' intervenuto il  TIMEOUT DETECTION & RECOVERY (WDDM TDR DELAY)" << endl << endl;
 
-	cudaCheckErrors("Esecuzione del kernel Fallita\n");
+	cudaCheckErrors("Il kernel ha riscontrato un errore durante l'esecuzione o e' stata interrotta la sua elaborazione\n");
 	
-	gpuErrchk(cudaEventElapsedTime(&elapsedsh, start, stop));
+	cudaEventElapsedTime(&elapsedsh, start, stop);
 		cudaCheckErrors("Errore di timing della funzione eseguita sulla GPU (SM)\n");
 
 	puts("    Calcolo sulla GPU completato");
 		cout << "    Tempo trascorso: " << (elapsedsh / 1000) << " s" << endl;
 		cout << endl << endl;
 
+
 	/*----------------------------------------------------------------------------------------------------------------------------------------------------*/
+
 
 	// Trasferimento dei valori della matrice risultante dalla compilazione sulla GPU alla variabile Host
 	puts(" - Trasferimento valori della GPU alla matrice del Host del risultato (GM & SM) -");
@@ -327,9 +340,9 @@ int main() {
 	cudaMemcpy(matResHostSH, matResGPUSH, mat.dimRes, cudaMemcpyDeviceToHost);
 		cudaCheckErrors("Trasferimento fallito\n");
 
-	gpuErrchk(cudaEventRecord(stop));
-	gpuErrchk(cudaEventSynchronize(stop));
-	gpuErrchk(cudaEventElapsedTime(&elapsed3, start, stop));
+	cudaEventRecord(stop);
+	cudaEventSynchronize(stop);
+	cudaEventElapsedTime(&elapsed3, start, stop);
 		cudaCheckErrors("Errore di timing durante copia dei dati\n");
 
 	puts("    Trasferimento completato");
@@ -337,7 +350,9 @@ int main() {
 		printf("    Larghezza di banda utilizzata (Device2H) durante il trasferimento delle matrici dei risultati (GB/s): %f\n", mat.dimRes * 2 * 1e-6 / elapsed3);
 		cout << endl << endl;
 
+
 	/*----------------------------------------------------------------------------------------------------------------------------------------------------*/
+
 
 	// Esecuzione funzione sulla CPU
 	puts(" - Avvio calcolo sulla CPU -");
@@ -353,7 +368,9 @@ int main() {
 	cout << "    Tempo trascorso: " << tempo << " s" << endl;
 		cout << endl << endl;
 
+
 	/*----------------------------------------------------------------------------------------------------------------------------------------------------*/
+
 
 	// Controllo della correttezza dei risultati
 	puts(" - Controllo dei risultati -");
@@ -363,7 +380,9 @@ int main() {
 	else
 		cout << "--> ERRORE"<< endl <<"    Esito: ATTENZIONE SONO STATI RILEVATI VALORI DISCORDANTI";
 
+
 	/*----------------------------------------------------------------------------------------------------------------------------------------------------*/
+
 
 	// visualizzazione dei tempi come tabella 
 	cout << endl << endl;
@@ -390,19 +409,29 @@ int main() {
 	t.setAlignment(3, TextTable::Alignment::RIGHT);
     cout << t;
 
+
 	/*----------------------------------------------------------------------------------------------------------------------------------------------------*/
+
 
 	// Deallocazione di tutte le variabili nelle memorie
 
 	cudaFreeHost(matRandHost);
+		cudaCheckErrors("Errore, impossibile deallocare la memoria\n");
 	cudaFreeHost(matriceHost);
+		cudaCheckErrors("Errore, impossibile deallocare la memoria\n");
 	cudaFreeHost(matResHost);
+		cudaCheckErrors("Errore, impossibile deallocare la memoria\n");
 	cudaFreeHost(matResHostSH);
+		cudaCheckErrors("Errore, impossibile deallocare la memoria\n");
 
 	cudaFree(matriceGPU);
+		cudaCheckErrors("Errore, impossibile deallocare la memoria\n");
 	cudaFree(matRGPU);
+		cudaCheckErrors("Errore, impossibile deallocare la memoria\n");
 	cudaFree(matResGPU);
+		cudaCheckErrors("Errore, impossibile deallocare la memoria\n");
 	cudaFree(matResGPUSH);
+		cudaCheckErrors("Errore, impossibile deallocare la memoria\n");
 
 	free(matResCPU);
 

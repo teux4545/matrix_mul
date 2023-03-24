@@ -80,27 +80,32 @@ __global__ void matrix_mulGPUShared(int *a, int *b, int *c) {
 	sB[threadIdx.y][threadIdx.x] = 0;
 		
 	// l'iterazione prima assegna in modo opportuno gli elementi ai blocchi e non disponendoli solo in righe e colonne di thread.
-	// Con la memoria globale si prende come punto di riferimento la griglia, qui vengono sfruttati i blocchi
-	// si fa in modo che i dati vengano caricati in blocchi creati appositamente a partire dalle dimensioni delle matrici di partenza adattandoli
+	// Mentre con la memoria globale si prende come punto di riferimento la griglia, qui vengono sfruttati i blocchi,
+	// si fa in modo che i dati vengano caricati in blocchi creati appositamente, a partire dalle dimensioni delle matrici di partenza e adattandoli
 	for (int i = 0; i < (((mat.colonneM1 - 1) / BLK) + 1); i++) {
 		if ((row < mat.righeM1) && (threadIdx.x + (i * BLK)) < mat.colonneM1) {
+
+			//avviene la "copia" dei dati dalla global memory alla shared memory per la 'matriceGPU'
 			sA[threadIdx.y][threadIdx.x] = a[(row * mat.colonneM1) + threadIdx.x + (i * BLK)];
 		}
 		else {
+			// se le dimensioni dovessero eccedere la matrice da cui si stanno prendendo i dati il posto vuoto verrà riempito con '0'
 			sA[threadIdx.y][threadIdx.x] = 0;
 		}
 
 		if (col < mat.colonneM2 && (threadIdx.y + i * BLK) < mat.righeM2) {
+			//avviene la "copia" dei dati dalla global memory alla shared memory per la 'matRGPU'
 			sB[threadIdx.y][threadIdx.x] = b[(threadIdx.y + i * BLK) * mat.colonneM2 + col];
 		}
 		else {
 			sB[threadIdx.y][threadIdx.x] = 0;
 		}
 		
-		// tutti i blocchi dovranno aver finito nello stesso istante
+		// tutti i blocchi dovranno aver finito di essere riempiti nello stesso istante
 		__syncthreads(); // errore di Intellisense, non comporta problemi durante l'esecuzione
 
 		for (int j = 0; j < BLK; ++j) {
+			// stessa operazione svolta nella global memory, qui tuttavia il calcolo è ancora più veloce
 			somma += sA[threadIdx.y][j] * sB[j][threadIdx.x];
 			__syncthreads();
 		}

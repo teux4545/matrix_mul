@@ -17,7 +17,7 @@ class Matrice {
 
 		// seconda matrice (M2)
 		const int righeM2 = 1920;
-		const int colonneM2 = 2000;
+		const int colonneM2 = 1440;
 
 		// dimensioni in bytes delle matrici M1, M2 e matrice dei risultati
 		size_t dimM1 = (righeM1*colonneM1) * sizeof(int);
