@@ -227,7 +227,7 @@ Nel progetto si trovano anche altre condizioni di controllo come:
 - http://gpu.di.unimi.it/slides/lezione2.pdf
 - https://ecatue.gitlab.io/gpu2018/pages/Cookbook/matrix_multiplication_cuda.html
 - https://leimao.github.io/blog/Proper-CUDA-Error-Checking/
-<br>Funzioni:
+<br><br>Funzioni:
 - (funzione global memory e su cpu) https://github.com/fbasatemur/CUDA-Matrix/tree/master/
 - (funzione shared memory) https://gist.github.com/raytroop/120e2d175d95f82edbee436374293420
 - (per il controllo degli errori) https://stackoverflow.com/questions/12924155/sending-3d-array-to-cuda-kernel/12925014#12925014
