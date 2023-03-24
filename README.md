@@ -63,6 +63,7 @@ Esecuzione sul kernel:<br>
 Le due funzioni di seguito come quella eseguita sulla CPU sono state prese e integrate da progetti github già disponibili, link in fondo al readme 
 
 ### Funzione eseguita utilizzando la Global Memory
+
 ```c++
 __global__ void matrix_mulGPU(int *a, int *b, int *c) {
 
@@ -87,6 +88,7 @@ Si inizializzano poi le coordinate unidimensionali x,y di tutti i thread così c
 Tutti i thread lavorano all'unisono, quasi contemporaneamente, il lavoro dunque sarà distribuito. Nel 'for' ogni thread si occuperà di lavorare lungo la riga e la colonna della matrice in cui si identifica, è buona norma mettere una barriera di sincronizzazione per le operazioni svolte, di questo si occuperà '<b>__syncthreads()</b>' che permetterà a tutti i thread di terminare il lavoro nello stesso istante.
 
 ### Funzione eseguita utilizzando la Shared Memory
+
 ```c++
 __global__ void matrix_mulGPUShared(int *a, int *b, int *c) {
 
@@ -133,7 +135,8 @@ __global__ void matrix_mulGPUShared(int *a, int *b, int *c) {
 <br>
 In esecuzione viene evidenziato come, utilizzando questo metodo, i tempi di calcolo sono notevolmente ridotti essendo le variabili '<b>__shared__</b>', caricate su una memoria 'on chip' (cache) più vicina all'unità di calcolo, infatti è buona norma non caricare questa memoria con troppi dati altrimenti si perderebbe in prestazioni.
 		
-## Calcolo sulla CPU 
+## Calcolo sulla CPU
+
 ```c++
 void matrix_mulCPU(int* a, int* b, int* c) {
 
@@ -153,11 +156,14 @@ void matrix_mulCPU(int* a, int* b, int* c) {
 }
 ```
 La seguente funzione ha caratteristiche sequenziali, in questo caso è un solo chip, la CPU precisamente, a svolgere tutte le operazioni di calcolo.<br>
-Lo svantaggio della sequenzialità è che si è costretti ad accedere ad un singolo elemento per volta ed elaborarlo, mentre sulla GPU i chip di calcolo accedono al singolo elemento ma la loro computazione e limitata ad esso. (vedere link in fondo che ha dominio ecatue.gitlab.io)
+Lo svantaggio della sequenzialità è che si è costretti ad accedere ad un singolo elemento per volta ed elaborarlo, mentre sulla GPU i chip di calcolo accedono al singolo elemento ma la loro computazione e limitata ad esso.<br>(link in fondo con dominio ecatue.gitlab.io)
 	
 ## Durata delle operazioni
 
+Per il calcolo della durata delle operazioni è stata usata la combinazione <b>cudaEventRecord()</b> e <b>cudaEventSynchronize()</b> per i kernel, mentre <b>clock()</b> per operazioni sulla CPU
+
 ## Controllo dei risultati
+
 ```c++
 bool checkRes(int *matResCPU, int *matResHost, int *matResHostSH) {
 
@@ -181,13 +187,13 @@ bool checkRes(int *matResCPU, int *matResHost, int *matResHostSH) {
 	return esito;
 }
 ```
-Viene effettuato uno scorrimento lungo tutti gli elementi delle tre matrici dei risultati, interrompendo il ciclo for grazie alla controllo sull'if di una discrepanza di dati
+
+Viene effettuato uno scorrimento lungo tutti gli elementi delle tre matrici dei risultati, quando l'if presente all'interno del 'for' annidato trova un valore qualsiasi diverso, confrontando i tre array, viene settata la variabile 'esito' a <i>false</i>, e si interrompe il ciclo.<br> Uscendo e proseguendo l'iterazione con il for più esterno, l'istruzione di controllo <i>if(esito)</i> a questo punto non vale più e si passa al caso <i>else</i> che interrompe anche il for esterno.
+
 ## Gestione delle eccezioni
 
 ```c++
 // Controllo errori cuda
-#define gpuErrchk(ans) { gpuAssert((ans), __FILE__, __LINE__); }
-inline void gpuAssert(cudaError_t code, const char *file, int line){}
 
 #define cudaCheckErrors(msg) \
     do { \
@@ -198,10 +204,20 @@ inline void gpuAssert(cudaError_t code, const char *file, int line){}
                 __FILE__, __LINE__); \
                fprintf(stderr, "\n *** FAILED - ABORTING\n"); \
             system("pause");\
-            return 1; \
+            exit(1); \
         } \
     } while (0)
 ```
+Gli errori durante la programmazione CUDA possono essere di due tipi, sincroni e asincroni.<br>
+In tutto il progetto troviamo chiamate alla macro <b>cudaCheckErrors</b> che riportano errori a runtime sincroni, cioè che nel momento stesso in cui si presentano la macro interviene per gestirli e li riporta (errore non-sticky, cioè non permanente, dunque recuperabile: le successive chiamate delle API CUDA si comportano normalmente).<br><br>
+Se dovesse presentarsi un errore asincrono, (anche sticky, cioè non recuperabile) cioè distante temporalmente dalla chiamata del kernel, errore come un accesso ad un indirizzo di memoria non valido, quindi solo durante l'esecuzione del kernel, la macro, che controlla gli errori sincroni, non registrerebbe l'errore perché al momento del lancio del kernel (operazione sincrona), non avrebbe riscontrato nulla di anomalo.<br><br>
+In questo particolare occasione è buona norma chiamare un'altra volta la macro subito dopo un evento di sincronizzazione ad esempio <b>cudaDeviceSynchronize</b> o come in questo caso <b>cudaEventSynchronize</b>.<br<br>
+
+Nel progetto si trovano anche altre condizioni di controllo come:
+* controllo delle dimesioni delle matrici
+* controllo sul TDR (Time Detection and Recovery delay)
+   - questo in particolare è un'impostazione di sistema che interrompe il lavoro che sta svolgendo la GPU e la resetta a parametri di default invalidando tutta l'elaborazione
+* dimensione delle matrici definite nella shared memory ('Funzioni_GPU.h') è diversa da quella impostata per i blocchi nella shared memory nel file 'matrixClass'
 
 ## Fonti e pagine web utili al progetto
 
@@ -210,9 +226,11 @@ inline void gpuAssert(cudaError_t code, const char *file, int line){}
 - https://developer.nvidia.com/blog/using-shared-memory-cuda-cc/#:~:text=Shared%20memory%20is%20a%20powerful,mechanism%20for%20threads%20to%20cooperate.
 - http://gpu.di.unimi.it/slides/lezione2.pdf
 - https://ecatue.gitlab.io/gpu2018/pages/Cookbook/matrix_multiplication_cuda.html
-Funzioni:
+- https://leimao.github.io/blog/Proper-CUDA-Error-Checking/
+<br>Funzioni:
 - https://github.com/fbasatemur/CUDA-Matrix/tree/master/
 - https://gist.github.com/raytroop/120e2d175d95f82edbee436374293420
 
 ## Autore
+
 - <b>Ciucciovè Leonardo</b>
