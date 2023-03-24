@@ -1,7 +1,7 @@
 # Moltiplicazione tra matrici usando CPU e GPU
 
 ## Introduzione
-Il seguente progetto ha come scopo quello di effettuare un operazione matriciale, quale prodotto di due matrici e mostrare infine le differenti tempistiche di elaborazione dei due dispositivi di calcolo presenti al giorno d'oggi in ogni computer.
+Il seguente progetto ha come scopo quello di effettuare un'operazione matriciale quale prodotto di due matrici e mostrare infine le differenti tempistiche di elaborazione dei due dispositivi di calcolo presenti al giorno d'oggi in ogni computer.
 
 Inizialmente il lavoro sarà affidato alla GPU (Graphic Processing Unit, processore grafico), sfruttando due diversi approcci, in un secondo momento invece la computazione verterà sulla CPU (Central Processing Unit, processore centrale).
 
@@ -27,7 +27,7 @@ Si tratta dunque di mettere in risalto i benefici di un calcolo eseguito in para
     <li>Colonne M1 & M2 e Mres</li>
     <li>Dimesioni delle tre matrici</li>
 </ul>
-Si è scelto poi di inizializzare tutti i valori direttamente nelle classe
+Ho scelto poi di inizializzare tutti i valori direttamente nelle classe
 
 Il file ne contiene anche un'altra che inizializza la dimensione dei blocchi di thread.
 
@@ -48,7 +48,7 @@ Tutti i metodi sono corredati di un controllo per eventuali eccezioni che si pos
 
 ## Come lavora il kernel eseguito sulla GPU
 
-Per operare sulla GPU dobbiamo innanzitutto predisporre una rappresentazione astratta dei thread che andranno effettivamente ad effettuare le operazioni di calcolo.
+Per operare sulla GPU è necessario innanzitutto predisporre una rappresentazione astratta dei thread che andranno effettivamente ad effettuare le operazioni di calcolo.
 Essenzialmente i raggruppamenti avvengono su due livelli:
 * <b>grid: </b> griglia ordinata di blocchi
 * <b>block: </b>insieme ordinato di thread (per questa configurazione hardware il numero massimo di thread per blocco è 1024)
@@ -131,7 +131,7 @@ __global__ void matrix_mulGPUShared(int *a, int *b, int *c) {
 ```
 "...La memoria condivisa viene allocata per blocco di thread, quindi tutti i thread del blocco hanno accesso alla stessa memoria condivisa. I thread possono accedere ai dati nella memoria condivisa caricati dalla memoria globale da altri thread all'interno dello stesso blocco di thread. ..." - developer.nvidia.com<br>
 <br>
-In esecuzione viene evidenziato come i tempi di calcolo, utilizzando questo metodo, sono notevolmente ridotti essendo le variabili '<b>__shared__</b>', caricate su una memoria 'on chip' (cache), quindi ancora più vicina all'unità di calcolo, infatti è buona norma non caricare questa memoria con troppi dati altrimenti si perderebbe in prestazioni.
+In esecuzione viene evidenziato come, utilizzando questo metodo, i tempi di calcolo sono notevolmente ridotti essendo le variabili '<b>__shared__</b>', caricate su una memoria 'on chip' (cache) più vicina all'unità di calcolo, infatti è buona norma non caricare questa memoria con troppi dati altrimenti si perderebbe in prestazioni.
 		
 ## Calcolo sulla CPU 
 ```c++
