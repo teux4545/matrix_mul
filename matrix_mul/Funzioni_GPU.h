@@ -23,7 +23,7 @@ __global__ void matrix_mulGPU(int *a, int *b, int *c) {
 	Matrice mat;
 
 	// Inizializzo le coordinate dei thread all'interno della griglia (col e row identificano un singolo thread specifico)
-	// Vengono mappate le posizioni degli elementi delle metrici facendole corrispondere alle posizioni dei thread ogni elemente verra elaborato sul thread per lui predisposto
+	// Vengono mappate le posizioni degli elementi delle matrici facendole corrispondere alle posizioni dei thread ogni elemente verra elaborato sul thread per lui predisposto
 	int col = blockIdx.x * blockDim.x + threadIdx.x;
 	int row = blockIdx.y * blockDim.y + threadIdx.y;
 

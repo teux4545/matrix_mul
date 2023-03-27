@@ -4,7 +4,7 @@
 #include "matrixClass.h"
 
 /*  Funzione eseguita sulla CPU (calcolo sequenziale)
-A differenza delle operazioni per cui il calcolo avviene simultaneamente per ogni fila ThreadY/ThreadX con l'unica analogia che riguarda lo scorrimento dei valori lungo le fasce,
+A differenza della GPU, per cui il calcolo avviene simultaneamente per ogni elemento, con l'unica analogia che riguarda lo scorrimento dei valori,
 la CPU, operando in modo sequenziale, deve scorrerere un elemento per volta e moltiplicarlo per il giusto elemento dell'altra matrice  */
 
 void matrix_mulCPU(int* a, int* b, int* c) {
@@ -19,7 +19,6 @@ void matrix_mulCPU(int* a, int* b, int* c) {
 			for (int k = 0; k < mat.colonneM1; k++) {
 				somma += a[i * mat.colonneM1 + k] * b[k * mat.colonneM2 + j];
 			}
-
 			c[i * mat.colonneM2 + j] = somma;
 		}
 	}

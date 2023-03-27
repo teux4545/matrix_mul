@@ -31,7 +31,7 @@ Ho scelto poi di inizializzare tutti i valori direttamente nelle classe
 
 Il file ne contiene anche un'altra che inizializza la dimensione dei blocchi di thread.
 
-Nel file '_kernel.cu_', la funzione <b>main</b>, esegue tutte le allocazioni di memoria previste usando i tre metodi:
+Nel file '_kernel.cu_', la funzione <b>main</b> esegue tutte le allocazioni di memoria previste usando i tre metodi:
 <ul>
     <li><b>cudaMallocHost: </b>alloca uno spazio di memoria nell'Host <i>(attenzione si riduce la dimensione di paging)</i>, questa memoria è page-locked, accessibile <b>direttamente</b> dal device (tempi più rapidi di accesso rispetto malloc)</li>
     <li><b>cudaMalloc: </b>alloca memoria sul Device</li>
@@ -48,7 +48,7 @@ Tutti i metodi sono corredati di un controllo per eventuali eccezioni che si pos
 
 ## Come lavora il kernel eseguito sulla GPU
 
-Per operare sulla GPU è necessario innanzitutto predisporre una rappresentazione astratta dei thread che andranno effettivamente ad effettuare le operazioni di calcolo.
+Per operare sulla GPU è necessario innanzitutto predisporre una rappresentazione astratta dei thread che andranno effettivamente ad eseguire le operazioni di calcolo.
 Essenzialmente i raggruppamenti avvengono su due livelli:
 * <b>grid: </b> griglia ordinata di blocchi
 * <b>block: </b>insieme ordinato di thread (per questa configurazione hardware il numero massimo di thread per blocco è 1024)
