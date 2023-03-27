@@ -85,7 +85,9 @@ __global__ void matrix_mulGPU(int *a, int *b, int *c) {
 ```
 Ogni kernel CUDA inizia con la dichiarazione '<b>__global__</b>'.<br>
 Si inizializzano poi le coordinate unidimensionali x,y di tutti i thread così che, dal loro indice sapremo che i dati nelle matrici associati a quelle specifiche posizioni verrano elaborati da quegli specifici thread.<br><br>
-Tutti i thread lavorano all'unisono, quasi contemporaneamente, il lavoro dunque sarà distribuito. Nel 'for' ogni thread si occuperà di lavorare lungo la riga e la colonna della matrice in cui si identifica, è buona norma mettere una barriera di sincronizzazione per le operazioni svolte, di questo si occuperà '<b>__syncthreads()</b>' che permetterà a tutti i thread di terminare il lavoro nello stesso istante.
+Tutti i thread lavorano all'unisono, quasi contemporaneamente, il lavoro dunque sarà distribuito. Nel 'for' si prende uan riga e si iterano lungo le colonne (viceversa per la seconda), ogni thread si occuperà di lavorare con il dato della matrice in cui si identifica, è buona norma mettere una barriera di sincronizzazione per le operazioni svolte, di questo si occuperà '<b>__syncthreads()</b>' che permetterà a tutti i thread di terminare il lavoro nello stesso istante.
+<br><br>NB: gli array bidimensionali (matrici) sono stati direttamente creati/convertiti a una dimensione, pur mantenendo un'organizzazione righe/colonne.<br>
+Ad esempio: per la <i>matriceHost</i>, che poi sarà <i>matriceGPU</i> (M1), i primi x elementi corrispondono alla riga 0 con x=colonneM1, i successivi x elementi saranno della riga 1, dunque fin qui si avranno 2*x elementi e così via fino ad ottenere n*x elementi (con n=righeM1), infatti la dimensione dell'array sarà righeM1*colonneM1, dimensione della matrice 1. Stessa cosa per M2. 
 
 ### Funzione eseguita utilizzando la Shared Memory
 
@@ -134,6 +136,7 @@ __global__ void matrix_mulGPUShared(int *a, int *b, int *c) {
 "...La memoria condivisa viene allocata per blocco di thread, quindi tutti i thread del blocco hanno accesso alla stessa memoria condivisa. I thread possono accedere ai dati nella memoria condivisa caricati dalla memoria globale da altri thread all'interno dello stesso blocco di thread. ..." - developer.nvidia.com<br>
 <br>
 In esecuzione viene evidenziato come, utilizzando questo metodo, i tempi di calcolo sono notevolmente ridotti essendo le variabili '<b>__shared__</b>', caricate su una memoria 'on chip' (cache) più vicina all'unità di calcolo, infatti è buona norma non caricare questa memoria con troppi dati altrimenti si perderebbe in prestazioni.
+<br>Vedere link in fondo (https://leimao.github.io/downloads/...) dove è spiegata anche l'utilità di syncthreads() che preveiene un hazard dei dati.
 		
 ## Calcolo sulla CPU
 
@@ -227,6 +230,7 @@ Nel progetto si trovano anche altre condizioni di controllo come:
 - http://gpu.di.unimi.it/slides/lezione2.pdf
 - https://ecatue.gitlab.io/gpu2018/pages/Cookbook/matrix_multiplication_cuda.html
 - https://leimao.github.io/blog/Proper-CUDA-Error-Checking/
+- https://leimao.github.io/downloads/blog/2022-07-04-CUDA-Shared-Memory-Capacity/02-CUDA-Shared-Memory.pdf
 <br><br>Funzioni:
 - (funzione global memory e su cpu) https://github.com/fbasatemur/CUDA-Matrix/tree/master/
 - (funzione shared memory) https://gist.github.com/raytroop/120e2d175d95f82edbee436374293420
